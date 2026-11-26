@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # wrangler local state
 .wrangler/
+
+# private notes, never pushed
+docs/KitBaaz-7-Day-Plan.pdf
