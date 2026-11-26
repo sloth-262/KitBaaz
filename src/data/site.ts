@@ -15,6 +15,10 @@ export const site = {
   // Pre-order terms shown across the site.
   advancePercent: 50,
   deliveryDays: { min: 10, max: 14 },
+  paymentMethodsBn: ['বিকাশ', 'নগদ', 'ব্যাংক ট্রান্সফার'], // TODO(Shakil): confirm
+
+  // Turn on once the pre-order form page (/order) exists.
+  preorderOpen: false,
 };
 
 export const whatsappLink = (text?: string) =>

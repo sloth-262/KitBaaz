@@ -10,6 +10,7 @@ export type Product = {
   ageMin: number;
   price: number | null; // in Tk; null = not announced yet
   inTheBoxBn: string[]; // empty = not confirmed yet
+  learnBn: string[]; // what children learn with this kit
   active: boolean; // false hides the kit from the site
 };
 
@@ -24,8 +25,18 @@ export const products: Product[] = [
     ageMin: 8,
     price: null, // TODO(Shakil): confirm price
     inTheBoxBn: [], // TODO(Shakil): confirm box contents
+    // TODO(Shakil): confirm these match the kit
+    learnBn: [
+      'ইলেকট্রনিক সার্কিট কীভাবে কাজ করে',
+      'সেন্সর দিয়ে আলো, তাপ বা নড়াচড়া বোঝা',
+      'ধাপে ধাপে মডেল বানানো ও সমস্যা সমাধান',
+      'কোডিংয়ের প্রাথমিক ধারণা',
+    ],
     active: true,
   },
 ];
 
 export const activeProducts = () => products.filter((p) => p.active);
+
+export const advanceAmount = (price: number, percent: number) =>
+  Math.ceil((price * percent) / 100);

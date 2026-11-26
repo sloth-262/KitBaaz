@@ -1,0 +1,277 @@
+---
+// One page per kit, built from src/data/products.ts.
+import type { GetStaticPaths } from 'astro';
+import Base from '../../layouts/Base.astro';
+import Placeholder from '../../components/Placeholder.astro';
+import { activeProducts, advanceAmount, type Product } from '../../data/products';
+import { site, whatsappLink } from '../../data/site';
+import { toBnDigits, formatTk } from '../../lib/bn';
+
+export const getStaticPaths = (() =>
+  activeProducts().map((kit) => ({ params: { slug: kit.slug }, props: { kit } }))) satisfies GetStaticPaths;
+
+interface Props {
+  kit: Product;
+}
+
+const { kit } = Astro.props;
+const advancePct = toBnDigits(site.advancePercent);
+const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
+const price = kit.price ? formatTk(kit.price) : null;
+const advance = kit.price ? formatTk(advanceAmount(kit.price, site.advancePercent)) : null;
+const orderHref = `/order?kit=${kit.slug}`;
+const wa = whatsappLink(`আসসালামু আলাইকুম, ${kit.nameBn} (${kit.code}) সম্পর্কে জানতে চাই।`);
+const payments = site.paymentMethodsBn.join(', ');
+
+const faqs = [
+  {
+    q: 'কিট হাতে পেতে কতদিন লাগবে?',
+    a: `অগ্রিম পাওয়ার পর ${days} দিনের মধ্যে কিট আপনার ঠিকানায় পৌঁছে দেওয়া হবে। প্রতিটি ধাপে আপনাকে জানানো হবে।`,
+  },
+  {
+    q: 'অগ্রিম কেন দিতে হবে?',
+    a: `কিটগুলো প্রি-অর্ডারে আনা হয়। আপনার অগ্রিম পেলে আমরা কিটটি আপনার জন্য অর্ডার করি। অগ্রিম মোট দামের ${advancePct}%।`,
+  },
+  {
+    q: 'অগ্রিম কীভাবে দেব?',
+    a: `${payments}-এর মাধ্যমে দিতে পারবেন। অর্ডার ফর্ম জমা দেওয়ার পর পেমেন্টের বিস্তারিত দেখানো হবে।`,
+  },
+  {
+    q: 'আমার সন্তানের বয়স কম হলে কি চলবে?',
+    a: `কিটটি ${toBnDigits(kit.ageMin)} বছর ও তার বেশি বয়সীদের জন্য। ছোটরা বড়দের সাথে বসে বানালে আরও ভালো শিখবে।`,
+  },
+];
+---
+
+<Base title={kit.nameBn} description={`${kit.nameBn} (${kit.code}): ${kit.summaryBn}`}>
+  <div class="container">
+    <nav class="crumbs" aria-label="অবস্থান">
+      <a href="/">হোম</a> <span aria-hidden="true">›</span> <a href="/#kits">কিট</a>
+      <span aria-hidden="true">›</span> <span>{kit.nameBn}</span>
+    </nav>
+  </div>
+
+  <section class="container product">
+    <div class="product__media">
+      <Placeholder label="প্রতীকী ছবি" />
+    </div>
+
+    <div class="product__info">
+      <p class="product__badge">প্রি-অর্ডার</p>
+      <h1>{kit.nameBn}</h1>
+      <p class="product__meta">
+        {kit.name} · {kit.code} · বয়স {toBnDigits(kit.ageMin)}+
+      </p>
+      <p>{kit.summaryBn}</p>
+
+      <div class="price-box">
+        {
+          price ? (
+            <>
+              <p class="price-box__price">{price}</p>
+              <p class="price-box__advance">
+                অগ্রিম {advancePct}%: <strong>{advance}</strong>
+              </p>
+            </>
+          ) : (
+            <p class="price-box__price price-box__price--tbd">দাম শীঘ্রই জানানো হবে</p>
+          )
+        }
+        <ul class="terms">
+          <li>ডেলিভারি: অগ্রিম পাওয়ার পর {days} দিন</li>
+          <li>অগ্রিম: মোট দামের {advancePct}%</li>
+          <li>পেমেন্ট: {payments}</li>
+        </ul>
+        <div class="product__actions">
+          {
+            site.preorderOpen ? (
+              <a class="btn btn--primary" href={orderHref}>প্রি-অর্ডার করুন</a>
+            ) : (
+              <span class="btn btn--primary" aria-disabled="true">প্রি-অর্ডার শীঘ্রই শুরু</span>
+            )
+          }
+          {wa && <a class="btn btn--outline" href={wa}>WhatsApp-এ প্রশ্ন করুন</a>}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container grid grid--2">
+      <div class="card">
+        <h2>বক্সে যা থাকছে</h2>
+        {
+          kit.inTheBoxBn.length ? (
+            <ul class="list">
+              {kit.inTheBoxBn.map((item) => (
+                <li>{item}</li>
+              ))}
+            </ul>
+          ) : (
+            <p class="muted">বক্সের সম্পূর্ণ তালিকা শীঘ্রই যোগ করা হবে।</p>
+          )
+        }
+      </div>
+      <div class="card">
+        <h2>যা শিখবে</h2>
+        <ul class="list">
+          {kit.learnBn.map((item) => <li>{item}</li>)}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <h2>সাধারণ প্রশ্ন</h2>
+      <div class="faq">
+        {
+          faqs.map((f) => (
+            <details>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <div class="sticky-cta">
+    <div class="container sticky-cta__inner">
+      <span class="sticky-cta__price">{price ?? 'দাম শীঘ্রই'}</span>
+      {
+        site.preorderOpen ? (
+          <a class="btn btn--primary" href={orderHref}>প্রি-অর্ডার</a>
+        ) : (
+          <span class="btn btn--primary" aria-disabled="true">শীঘ্রই</span>
+        )
+      }
+    </div>
+  </div>
+</Base>
+
+<style>
+  .crumbs {
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    padding: 14px 0 6px;
+  }
+  .crumbs a {
+    color: var(--ink-soft);
+  }
+  .product {
+    display: grid;
+    gap: 24px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  @media (min-width: 720px) {
+    .product {
+      grid-template-columns: 1fr 1fr;
+      align-items: start;
+      padding-top: 24px;
+    }
+  }
+  .product__badge {
+    display: inline-block;
+    background: #fff3e6;
+    color: var(--accent-dark);
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 2px 12px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+  }
+  .product__meta {
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+  }
+  .price-box {
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .price-box__price {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--brand-dark);
+    margin-bottom: 0.2em;
+  }
+  .price-box__price--tbd {
+    font-size: 1.25rem;
+  }
+  .price-box__advance {
+    margin-bottom: 0.6em;
+  }
+  .terms {
+    margin: 0 0 16px;
+    padding-left: 1.2em;
+  }
+  .product__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .grid--2 {
+    display: grid;
+    gap: 16px;
+  }
+  @media (min-width: 720px) {
+    .grid--2 {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .list {
+    margin: 0;
+    padding-left: 1.2em;
+  }
+  .muted {
+    color: var(--ink-soft);
+  }
+  .faq {
+    display: grid;
+    gap: 10px;
+  }
+  details {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+  }
+  summary {
+    font-weight: 600;
+    cursor: pointer;
+  }
+  details p {
+    margin: 10px 0 0;
+    color: var(--ink-soft);
+  }
+
+  /* Price and pre-order button stay visible at the bottom on phones. */
+  .sticky-cta {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: #fff;
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+    padding: 10px 0 calc(10px + env(safe-area-inset-bottom));
+  }
+  .sticky-cta__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .sticky-cta__price {
+    font-weight: 700;
+    color: var(--brand-dark);
+  }
+  @media (min-width: 720px) {
+    .sticky-cta {
+      display: none;
+    }
+  }
+</style>
