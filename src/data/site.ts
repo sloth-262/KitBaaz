@@ -15,11 +15,21 @@ export const site = {
   // Pre-order terms shown across the site.
   advancePercent: 50,
   deliveryDays: { min: 10, max: 14 },
-  paymentMethodsBn: ['বিকাশ', 'নগদ', 'ব্যাংক ট্রান্সফার'], // TODO(Shakil): confirm
 
-  // Turn on once the pre-order form page (/order) exists.
+  // Where customers send the advance. Shown on the thank-you page.
+  // TODO(Shakil): confirm methods and fill in the numbers / bank details.
+  payments: {
+    bkash: { labelBn: 'বিকাশ', number: null as string | null, howBn: 'Send Money' },
+    nagad: { labelBn: 'নগদ', number: null as string | null, howBn: 'Send Money' },
+    bank: { labelBn: 'ব্যাংক ট্রান্সফার', number: null as string | null, howBn: '' },
+  },
+
+  // Shows the pre-order buttons on the landing and product pages.
+  // Turn on once at least one kit has a price.
   preorderOpen: false,
 };
+
+export const paymentLabelsBn = () => Object.values(site.payments).map((p) => p.labelBn);
 
 export const whatsappLink = (text?: string) =>
   site.whatsapp

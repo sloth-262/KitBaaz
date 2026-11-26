@@ -14,11 +14,13 @@ import { site } from '../data/site';
 interface Props {
   title?: string;
   description?: string;
+  noindex?: boolean; // keep the page out of Google (e.g. thank-you page)
 }
 
 const {
   title,
   description = 'KitBaaz: শিশুদের জন্য রোবোটিক্স ও STEM কিট, এখন বাংলাদেশে প্রি-অর্ডারে।',
+  noindex = false,
 } = Astro.props;
 
 const fullTitle = title ? `${title} | ${site.name}` : `${site.name} | ${site.tagline}`;
@@ -31,6 +33,7 @@ const fullTitle = title ? `${title} | ${site.name}` : `${site.name} | ${site.tag
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#0b7a75" />
+    {noindex && <meta name="robots" content="noindex" />}
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />

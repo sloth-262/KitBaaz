@@ -1,0 +1,16 @@
+# Copy this file to .dev.vars for local development. .dev.vars is never committed.
+# On Cloudflare, set each one with:  npx wrangler secret put NAME
+
+# Google Apps Script web app URL that writes orders into the Sheet (ends in /exec).
+# Leave empty during local development: orders get a KB-DEV-XXXX test ID instead.
+ORDER_WEBHOOK_URL=
+
+# Shared password between the website and the Apps Script. Any long random string.
+ORDER_WEBHOOK_SECRET=
+
+# Cloudflare Turnstile spam check. Leave both empty to switch it off.
+# Cloudflare test keys that always pass:
+#   site key   1x00000000000000000000AA
+#   secret key 1x0000000000000000000000000000000AA
+TURNSTILE_SECRET_KEY=
+PUBLIC_TURNSTILE_SITE_KEY=

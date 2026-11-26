@@ -1,0 +1,166 @@
+---
+import Base from '../layouts/Base.astro';
+import { site, whatsappLink } from '../data/site';
+import { activeProducts } from '../data/products';
+import { toBnDigits } from '../lib/bn';
+
+const advancePct = toBnDigits(site.advancePercent);
+const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
+const wa = whatsappLink();
+const pageData = JSON.stringify({
+  payments: site.payments,
+  kits: Object.fromEntries(activeProducts().map((k) => [k.slug, k.nameBn])),
+  whatsapp: site.whatsapp,
+});
+---
+
+<Base title="ধন্যবাদ" noindex>
+  <section class="section thanks">
+    <div class="container thanks__inner" id="thanks" data-page={pageData}>
+      <div class="thanks__icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="56" height="56">
+          <circle cx="24" cy="24" r="24" fill="#0b7a75"></circle>
+          <path d="M14 25l7 7 13-15" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+      <h1>ধন্যবাদ! আপনার প্রি-অর্ডার পেয়েছি</h1>
+
+      <div class="card order-id" id="order-box" hidden>
+        <span>অর্ডার নম্বর</span>
+        <strong id="order-id"></strong>
+        <span class="order-id__kit" id="order-kit"></span>
+      </div>
+
+      <div class="card step">
+        <h2>১. {advancePct}% অগ্রিম পাঠান</h2>
+        <div id="amounts" hidden>
+          <div class="row"><span>মোট দাম</span><strong id="amt-total"></strong></div>
+          <div class="row row--big"><span>এখন অগ্রিম ({advancePct}%)</span><strong id="amt-advance"></strong></div>
+          <div class="row"><span>বাকি</span><strong id="amt-balance"></strong></div>
+        </div>
+        <p id="pay-how">
+          অর্ডার নিশ্চিত করতে মোট দামের {advancePct}% অগ্রিম পাঠাতে হবে। পেমেন্টের নম্বর আমরা ফোন করে জানিয়ে দেব।
+        </p>
+        <p class="muted">পেমেন্টের রেফারেন্সে আপনার অর্ডার নম্বরটি লিখুন।</p>
+      </div>
+
+      <div class="card step">
+        <h2>২. আমরা ফোন করে নিশ্চিত করব</h2>
+        <p>অগ্রিম পাওয়ার পর আমরা আপনার নম্বরে ফোন বা মেসেজ করে অর্ডার নিশ্চিত করব।</p>
+      </div>
+
+      <div class="card step">
+        <h2>৩. {days} দিনের মধ্যে ডেলিভারি</h2>
+        <p>অগ্রিম পাওয়ার পর {days} দিনের মধ্যে কিট আপনার ঠিকানায় পৌঁছে যাবে। প্রতিটি ধাপে আপনাকে জানানো হবে।</p>
+      </div>
+
+      <div class="thanks__actions">
+        {wa && <a class="btn btn--outline" href={wa} id="wa-link">WhatsApp-এ যোগাযোগ</a>}
+        <a class="btn btn--primary" href="/">হোম পেজে ফিরে যান</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { formatTk, toBnDigits } from '../lib/bn';
+
+  type Payment = { labelBn: string; number: string | null; howBn: string };
+  const root = document.querySelector<HTMLElement>('#thanks')!;
+  const page = JSON.parse(root.dataset.page ?? '{}') as {
+    payments: Record<string, Payment>;
+    kits: Record<string, string>;
+    whatsapp: string | null;
+  };
+  const p = new URLSearchParams(location.search);
+  const id = p.get('id');
+  const money = (key: string) => {
+    const n = Number(p.get(key));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const total = money('total');
+  const advance = money('advance');
+  const set = (sel: string, text: string) => (document.querySelector(sel)!.textContent = text);
+
+  if (id && /^[A-Z0-9-]{4,30}$/.test(id)) {
+    set('#order-id', id);
+    const kit = page.kits[p.get('kit') ?? ''];
+    const qty = Number(p.get('qty'));
+    if (kit) set('#order-kit', Number.isInteger(qty) && qty > 0 ? `${kit} · ${toBnDigits(qty)}টি` : kit);
+    document.querySelector<HTMLElement>('#order-box')!.hidden = false;
+
+    if (total && advance && advance <= total) {
+      set('#amt-total', formatTk(total));
+      set('#amt-advance', formatTk(advance));
+      set('#amt-balance', formatTk(total - advance));
+      document.querySelector<HTMLElement>('#amounts')!.hidden = false;
+    }
+
+    const pay = page.payments[p.get('pay') ?? ''];
+    if (pay?.number) {
+      const amount = advance ? `${formatTk(advance)} ` : '';
+      set(
+        '#pay-how',
+        `${pay.labelBn} নম্বর ${pay.number}-এ ${amount}${pay.howBn ? pay.howBn + ' ' : ''}করুন।`,
+      );
+    } else if (pay) {
+      set('#pay-how', `আপনি ${pay.labelBn} বেছে নিয়েছেন। পেমেন্টের নম্বর আমরা ফোন করে জানিয়ে দেব।`);
+    }
+
+    const wa = document.querySelector<HTMLAnchorElement>('#wa-link');
+    if (wa && page.whatsapp) {
+      wa.href = `https://wa.me/${page.whatsapp}?text=${encodeURIComponent(`আমার অর্ডার নম্বর ${id}।`)}`;
+    }
+  }
+</script>
+
+<style>
+  .thanks__inner {
+    max-width: 640px;
+    display: grid;
+    gap: 14px;
+  }
+  .thanks__icon {
+    display: flex;
+  }
+  .order-id {
+    display: grid;
+    gap: 2px;
+    background: var(--bg-soft);
+    border-color: var(--brand);
+  }
+  .order-id strong {
+    font-size: 1.5rem;
+    letter-spacing: 0.04em;
+    color: var(--brand-dark);
+    font-family: ui-monospace, 'Segoe UI', sans-serif;
+  }
+  .order-id__kit {
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+  }
+  .step h2 {
+    font-size: 1.15rem;
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+  }
+  .row--big {
+    font-size: 1.15rem;
+    color: var(--brand-dark);
+  }
+  #amounts {
+    margin-bottom: 12px;
+  }
+  .muted {
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+  }
+  .thanks__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+</style>

@@ -1,0 +1,407 @@
+---
+import Base from '../layouts/Base.astro';
+import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
+import { orderableProducts } from '../data/products';
+import { site, whatsappLink } from '../data/site';
+import { MAX_QUANTITY, PAYMENT_METHODS } from '../lib/order';
+import { toBnDigits, formatTk } from '../lib/bn';
+
+const kits = orderableProducts();
+const first = kits[0];
+const advancePct = toBnDigits(site.advancePercent);
+const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
+const kitData = JSON.stringify(kits.map((k) => ({ slug: k.slug, price: k.price })));
+const wa = whatsappLink('আসসালামু আলাইকুম, প্রি-অর্ডার করতে চাই।');
+---
+
+<Base title="প্রি-অর্ডার" description="KitBaaz-এ কিট প্রি-অর্ডার করুন। মাত্র ৫০% অগ্রিম।">
+  {PUBLIC_TURNSTILE_SITE_KEY && (
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  )}
+
+  <section class="section order">
+    <div class="container order__inner">
+      <h1>প্রি-অর্ডার ফর্ম</h1>
+
+      {
+        kits.length === 0 ? (
+          <div class="card">
+            <p>প্রি-অর্ডার শীঘ্রই শুরু হবে। আগ্রহী হলে আমাদের সাথে যোগাযোগ করুন।</p>
+            {wa && <a class="btn btn--outline" href={wa}>WhatsApp-এ কথা বলুন</a>}
+          </div>
+        ) : (
+          <>
+            <p class="section-lead">
+              ফর্মটি পূরণ করে জমা দিন। এখন কোনো টাকা দিতে হবে না; জমা দেওয়ার পর {advancePct}% অগ্রিম
+              পাঠানোর নিয়ম দেখানো হবে। অগ্রিম পাওয়ার পর {days} দিনের মধ্যে ডেলিভারি।
+            </p>
+
+            <div class="alert" id="form-alert" role="alert" hidden></div>
+
+            <form
+              id="order-form"
+              class="form"
+              method="post"
+              action="/api/order"
+              novalidate
+              data-kits={kitData}
+              data-advance={site.advancePercent}
+            >
+              <fieldset class="card">
+                <legend>কিট</legend>
+
+                <div class="field">
+                  <label for="kit">কোন কিট</label>
+                  <select id="kit" name="kit" required>
+                    {kits.map((k) => (
+                      <option value={k.slug}>
+                        {k.nameBn} ({k.code}) · {formatTk(k.price)}
+                      </option>
+                    ))}
+                  </select>
+                  <p class="field__error" id="err-kit" hidden></p>
+                </div>
+
+                <div class="field">
+                  <label for="quantity">পরিমাণ</label>
+                  <select id="quantity" name="quantity" required>
+                    {Array.from({ length: MAX_QUANTITY }, (_, i) => (
+                      <option value={i + 1}>{toBnDigits(i + 1)}টি</option>
+                    ))}
+                  </select>
+                  <p class="field__error" id="err-quantity" hidden></p>
+                </div>
+              </fieldset>
+
+              <fieldset class="card">
+                <legend>আপনার তথ্য</legend>
+
+                <div class="field">
+                  <label for="name">নাম</label>
+                  <input id="name" name="name" type="text" autocomplete="name" required maxlength="80" />
+                  <p class="field__error" id="err-name" hidden></p>
+                </div>
+
+                <div class="field">
+                  <label for="phone">মোবাইল নম্বর</label>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    inputmode="tel"
+                    autocomplete="tel"
+                    placeholder="01XXXXXXXXX"
+                    required
+                    maxlength="20"
+                  />
+                  <p class="field__hint">এই নম্বরে ফোন করে অর্ডার নিশ্চিত করা হবে।</p>
+                  <p class="field__error" id="err-phone" hidden></p>
+                </div>
+
+                <div class="field">
+                  <label for="district">জেলা</label>
+                  <input
+                    id="district"
+                    name="district"
+                    type="text"
+                    autocomplete="address-level2"
+                    placeholder="যেমন: ঢাকা"
+                    required
+                    maxlength="40"
+                  />
+                  <p class="field__error" id="err-district" hidden></p>
+                </div>
+
+                <div class="field">
+                  <label for="address">পূর্ণ ঠিকানা</label>
+                  <textarea
+                    id="address"
+                    name="address"
+                    rows="3"
+                    autocomplete="street-address"
+                    placeholder="বাসা, রোড, এলাকা, থানা"
+                    required
+                    maxlength="300"
+                  ></textarea>
+                  <p class="field__error" id="err-address" hidden></p>
+                </div>
+              </fieldset>
+
+              <fieldset class="card">
+                <legend>অগ্রিম পেমেন্ট</legend>
+                <p class="field__hint">কোন মাধ্যমে {advancePct}% অগ্রিম পাঠাবেন?</p>
+                <div class="choices" role="radiogroup" aria-describedby="err-payment">
+                  {PAYMENT_METHODS.map((m, i) => (
+                    <label class="choice">
+                      <input type="radio" name="payment" value={m} checked={i === 0} />
+                      <span>{site.payments[m].labelBn}</span>
+                    </label>
+                  ))}
+                </div>
+                <p class="field__error" id="err-payment" hidden></p>
+
+                <div class="field">
+                  <label for="note">কিছু জানাতে চান? (ঐচ্ছিক)</label>
+                  <textarea id="note" name="note" rows="2" maxlength="300"></textarea>
+                </div>
+              </fieldset>
+
+              {/* Hidden from people; bots fill it in. */}
+              <div class="hp" aria-hidden="true">
+                <label for="website">Website</label>
+                <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+              </div>
+
+              <div class="card summary" aria-live="polite">
+                <div class="summary__row">
+                  <span>মোট দাম</span>
+                  <strong id="sum-total">{formatTk(first.price)}</strong>
+                </div>
+                <div class="summary__row summary__row--advance">
+                  <span>অগ্রিম ({advancePct}%)</span>
+                  <strong id="sum-advance">{formatTk(Math.ceil((first.price * site.advancePercent) / 100))}</strong>
+                </div>
+                <div class="summary__row">
+                  <span>বাকি</span>
+                  <strong id="sum-balance">
+                    {formatTk(first.price - Math.ceil((first.price * site.advancePercent) / 100))}
+                  </strong>
+                </div>
+              </div>
+
+              {PUBLIC_TURNSTILE_SITE_KEY && (
+                <div class="cf-turnstile" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY} data-language="bn" />
+              )}
+
+              <button type="submit" class="btn btn--primary btn--block" id="submit">
+                প্রি-অর্ডার জমা দিন
+              </button>
+            </form>
+          </>
+        )
+      }
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { validateOrder, orderTotals, type FieldErrors } from '../lib/order';
+  import { formatTk } from '../lib/bn';
+
+  const SERVER_ERRORS: Record<string, string> = {
+    bad_request: 'ফর্মটি পড়া যায়নি। আবার চেষ্টা করুন।',
+    invalid: 'কিছু তথ্য ঠিক নেই। আবার দেখে জমা দিন।',
+    spam: 'যাচাই করা যায়নি। পাতাটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+    unavailable: 'এই মুহূর্তে অর্ডার নেওয়া যাচ্ছে না। একটু পরে আবার চেষ্টা করুন, অথবা আমাদের ফোন করুন।',
+    server: 'অর্ডারটি জমা দেওয়া যায়নি। একটু পরে আবার চেষ্টা করুন, অথবা আমাদের ফোন করুন।',
+  };
+  const NETWORK_ERROR = 'ইন্টারনেট সংযোগে সমস্যা। সংযোগ দেখে আবার চেষ্টা করুন।';
+
+  const form = document.querySelector<HTMLFormElement>('#order-form');
+  const alertBox = document.querySelector<HTMLElement>('#form-alert');
+
+  if (form && alertBox) {
+    const kits: { slug: string; price: number }[] = JSON.parse(form.dataset.kits ?? '[]');
+    const advancePercent = Number(form.dataset.advance);
+    const submit = form.querySelector<HTMLButtonElement>('#submit')!;
+    const kitSelect = form.querySelector<HTMLSelectElement>('#kit')!;
+    const qtySelect = form.querySelector<HTMLSelectElement>('#quantity')!;
+    const params = new URLSearchParams(location.search);
+
+    const showAlert = (msg: string | null) => {
+      alertBox.textContent = msg ?? '';
+      alertBox.hidden = !msg;
+      if (msg) alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    // Pre-select the kit from /order?kit=qe001, and show errors from a no-JS post.
+    const wanted = params.get('kit');
+    if (wanted && kits.some((k) => k.slug === wanted)) kitSelect.value = wanted;
+    const serverError = params.get('error');
+    if (serverError) showAlert(SERVER_ERRORS[serverError] ?? SERVER_ERRORS.server);
+
+    const updateSummary = () => {
+      const kit = kits.find((k) => k.slug === kitSelect.value);
+      if (!kit) return;
+      const t = orderTotals(kit.price, Number(qtySelect.value), advancePercent);
+      document.querySelector('#sum-total')!.textContent = formatTk(t.total);
+      document.querySelector('#sum-advance')!.textContent = formatTk(t.advance);
+      document.querySelector('#sum-balance')!.textContent = formatTk(t.balance);
+    };
+    kitSelect.addEventListener('change', updateSummary);
+    qtySelect.addEventListener('change', updateSummary);
+    updateSummary();
+
+    const showErrors = (errors: FieldErrors) => {
+      let firstInvalid: HTMLElement | null = null;
+      form.querySelectorAll<HTMLElement>('.field__error').forEach((el) => {
+        const field = el.id.replace('err-', '') as keyof FieldErrors;
+        const msg = errors[field];
+        el.textContent = msg ?? '';
+        el.hidden = !msg;
+        const input = form.querySelector<HTMLElement>(`[name="${field}"]`);
+        if (input) {
+          input.toggleAttribute('aria-invalid', Boolean(msg));
+          if (msg) input.setAttribute('aria-describedby', el.id);
+          if (msg && !firstInvalid) firstInvalid = input;
+        }
+      });
+      (firstInvalid as HTMLElement | null)?.focus();
+    };
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showAlert(null);
+
+      const data = Object.fromEntries(new FormData(form));
+      const { errors } = validateOrder(data, kits.map((k) => k.slug));
+      showErrors(errors);
+      if (Object.keys(errors).length > 0) return;
+
+      submit.disabled = true;
+      submit.textContent = 'জমা হচ্ছে…';
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { accept: 'application/json' },
+        });
+        const result = await res.json();
+        if (result.ok) {
+          location.assign(result.redirect);
+          return;
+        }
+        if (result.fieldErrors) showErrors(result.fieldErrors);
+        showAlert(result.message ?? SERVER_ERRORS.server);
+      } catch {
+        showAlert(NETWORK_ERROR);
+      }
+      submit.disabled = false;
+      submit.textContent = 'প্রি-অর্ডার জমা দিন';
+      (window as unknown as { turnstile?: { reset: () => void } }).turnstile?.reset();
+    });
+  }
+</script>
+
+<style>
+  .order__inner {
+    max-width: 640px;
+  }
+  .form {
+    display: grid;
+    gap: 16px;
+  }
+  fieldset {
+    margin: 0;
+    min-width: 0;
+  }
+  legend {
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 0 6px;
+  }
+  .field {
+    display: grid;
+    gap: 4px;
+    margin-top: 14px;
+  }
+  label {
+    font-weight: 600;
+  }
+  input[type='text'],
+  input[type='tel'],
+  select,
+  textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 1rem; /* 16px+ stops iPhones zooming into the field */
+    color: var(--ink);
+    background: #fff;
+    border: 1.5px solid #b8c7c4;
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-height: 48px;
+  }
+  textarea {
+    resize: vertical;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--brand);
+    outline: 3px solid rgba(11, 122, 117, 0.2);
+  }
+  [aria-invalid] {
+    border-color: #c0392b !important;
+  }
+  .field__hint {
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .field__error {
+    font-size: 0.9rem;
+    color: #b3261e;
+    margin: 0;
+  }
+  .choices {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .choice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1.5px solid #b8c7c4;
+    border-radius: 10px;
+    padding: 10px 14px;
+    min-height: 48px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .choice:has(input:checked) {
+    border-color: var(--brand);
+    background: var(--bg-soft);
+  }
+  .choice input {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--brand);
+  }
+  .hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+  .summary {
+    background: var(--bg-soft);
+  }
+  .summary__row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+  }
+  .summary__row--advance {
+    font-size: 1.1rem;
+    color: var(--brand-dark);
+  }
+  .alert {
+    background: #fdecea;
+    color: #8c1d18;
+    border: 1px solid #f5c2bd;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+  .btn--block {
+    width: 100%;
+    font-size: 1.1rem;
+  }
+  .btn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+  }
+</style>

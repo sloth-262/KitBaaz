@@ -4,7 +4,7 @@ import type { GetStaticPaths } from 'astro';
 import Base from '../../layouts/Base.astro';
 import Placeholder from '../../components/Placeholder.astro';
 import { activeProducts, advanceAmount, type Product } from '../../data/products';
-import { site, whatsappLink } from '../../data/site';
+import { site, whatsappLink, paymentLabelsBn } from '../../data/site';
 import { toBnDigits, formatTk } from '../../lib/bn';
 
 export const getStaticPaths = (() =>
@@ -19,9 +19,9 @@ const advancePct = toBnDigits(site.advancePercent);
 const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
 const price = kit.price ? formatTk(kit.price) : null;
 const advance = kit.price ? formatTk(advanceAmount(kit.price, site.advancePercent)) : null;
-const orderHref = `/order?kit=${kit.slug}`;
+const orderHref = `/order/?kit=${kit.slug}`;
 const wa = whatsappLink(`আসসালামু আলাইকুম, ${kit.nameBn} (${kit.code}) সম্পর্কে জানতে চাই।`);
-const payments = site.paymentMethodsBn.join(', ');
+const payments = paymentLabelsBn().join(', ');
 
 const faqs = [
   {

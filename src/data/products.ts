@@ -38,5 +38,11 @@ export const products: Product[] = [
 
 export const activeProducts = () => products.filter((p) => p.active);
 
+// Kits a customer can pre-order right now: active and with a price.
+export const orderableProducts = () =>
+  activeProducts().filter((p): p is Product & { price: number } => p.price !== null);
+
+export const findOrderable = (slug: string) => orderableProducts().find((p) => p.slug === slug);
+
 export const advanceAmount = (price: number, percent: number) =>
   Math.ceil((price * percent) / 100);
