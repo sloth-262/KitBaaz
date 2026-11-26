@@ -44,6 +44,56 @@ const pageData = JSON.stringify({
         <p class="muted">পেমেন্টের রেফারেন্সে আপনার অর্ডার নম্বরটি লিখুন।</p>
       </div>
 
+      <div class="card step claim" id="claim" hidden>
+        <h2>টাকা পাঠিয়েছেন? TrxID দিন</h2>
+        <p class="muted">
+          টাকা পাঠানোর পর SMS-এ একটি TrxID (ট্রানজেকশন আইডি) পাবেন। সেটি এখানে দিন, আমরা মিলিয়ে দেখে অর্ডার
+          নিশ্চিত করব।
+        </p>
+
+        <div class="alert" id="claim-alert" role="alert" hidden></div>
+
+        <form id="claim-form" novalidate>
+          <input type="hidden" name="orderId" />
+          <input type="hidden" name="key" />
+          <div class="hp" aria-hidden="true">
+            <label for="claim-website">Website</label>
+            <input id="claim-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="trxId">TrxID</label>
+            <input
+              id="trxId"
+              name="trxId"
+              type="text"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="যেমন: 9K3L2M1N0P"
+              maxlength="30"
+            />
+            <p class="field__error" id="claim-err-trxId" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="paidFrom">যে নম্বর থেকে টাকা পাঠিয়েছেন</label>
+            <input id="paidFrom" name="paidFrom" type="tel" inputmode="tel" placeholder="01XXXXXXXXX" maxlength="20" />
+            <p class="field__error" id="claim-err-paidFrom" hidden></p>
+          </div>
+
+          <button type="submit" class="btn btn--primary btn--block" id="claim-submit">TrxID জমা দিন</button>
+        </form>
+
+        <div class="claim__done" id="claim-done" hidden>
+          <p><strong>ধন্যবাদ! TrxID পেয়েছি।</strong></p>
+          <p>আমরা মিলিয়ে দেখে আপনাকে ফোন বা মেসেজে জানাব। ভুল হলে আবার দিতে পারবেন।</p>
+          <button type="button" class="btn btn--outline" id="claim-again">আবার দিন</button>
+        </div>
+
+        <p class="muted claim__later">এখন টাকা না পাঠালে এই পাতার লিংকটি সেভ করে রাখুন, পরে এসে TrxID দিতে পারবেন।</p>
+      </div>
+
       <div class="card step">
         <h2>২. আমরা ফোন করে নিশ্চিত করব</h2>
         <p>অগ্রিম পাওয়ার পর আমরা আপনার নম্বরে ফোন বা মেসেজ করে অর্ডার নিশ্চিত করব।</p>
@@ -64,6 +114,7 @@ const pageData = JSON.stringify({
 
 <script>
   import { formatTk, toBnDigits } from '../lib/bn';
+  import { validatePaymentClaim, type ClaimErrors } from '../lib/order';
 
   type Payment = { labelBn: string; number: string | null; howBn: string };
   const root = document.querySelector<HTMLElement>('#thanks')!;
@@ -111,6 +162,77 @@ const pageData = JSON.stringify({
     if (wa && page.whatsapp) {
       wa.href = `https://wa.me/${page.whatsapp}?text=${encodeURIComponent(`আমার অর্ডার নম্বর ${id}।`)}`;
     }
+
+    const key = p.get('k');
+    if (key && /^[0-9a-f]{12}$/.test(key)) setUpClaim(id, key);
+  }
+
+  // "Paid already? Enter the TrxID" box.
+  function setUpClaim(orderId: string, key: string) {
+    const box = document.querySelector<HTMLElement>('#claim')!;
+    const form = document.querySelector<HTMLFormElement>('#claim-form')!;
+    const done = document.querySelector<HTMLElement>('#claim-done')!;
+    const alertBox = document.querySelector<HTMLElement>('#claim-alert')!;
+    const submit = document.querySelector<HTMLButtonElement>('#claim-submit')!;
+    form.orderId.value = orderId;
+    form.key.value = key;
+    box.hidden = false;
+
+    const showAlert = (msg: string | null) => {
+      alertBox.textContent = msg ?? '';
+      alertBox.hidden = !msg;
+    };
+    const showErrors = (errors: ClaimErrors) => {
+      let first: HTMLElement | null = null;
+      for (const field of ['trxId', 'paidFrom'] as const) {
+        const msg = errors[field];
+        const el = document.querySelector<HTMLElement>(`#claim-err-${field}`)!;
+        const input = form.elements.namedItem(field) as HTMLInputElement;
+        el.textContent = msg ?? '';
+        el.hidden = !msg;
+        input.toggleAttribute('aria-invalid', Boolean(msg));
+        if (msg) input.setAttribute('aria-describedby', el.id);
+        if (msg && !first) first = input;
+      }
+      (first as HTMLElement | null)?.focus();
+    };
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showAlert(null);
+      const data = Object.fromEntries(new FormData(form));
+      const { errors } = validatePaymentClaim(data);
+      showErrors(errors);
+      if (Object.keys(errors).length > 0) return;
+
+      submit.disabled = true;
+      submit.textContent = 'জমা হচ্ছে…';
+      try {
+        const res = await fetch('/api/payment', {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { accept: 'application/json' },
+        });
+        const result = await res.json();
+        if (result.ok) {
+          form.hidden = true;
+          done.hidden = false;
+        } else {
+          if (result.fieldErrors) showErrors(result.fieldErrors);
+          showAlert(result.message ?? 'তথ্যটি জমা দেওয়া যায়নি। আবার চেষ্টা করুন।');
+        }
+      } catch {
+        showAlert('ইন্টারনেট সংযোগে সমস্যা। সংযোগ দেখে আবার চেষ্টা করুন।');
+      }
+      submit.disabled = false;
+      submit.textContent = 'TrxID জমা দিন';
+    });
+
+    document.querySelector('#claim-again')!.addEventListener('click', () => {
+      done.hidden = true;
+      form.hidden = false;
+      form.trxId.focus();
+    });
   }
 </script>
 
@@ -162,5 +284,27 @@ const pageData = JSON.stringify({
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+  }
+  .claim {
+    border-color: var(--accent);
+  }
+  .claim form {
+    display: grid;
+    gap: 4px;
+  }
+  .claim form .btn {
+    margin-top: 16px;
+  }
+  #trxId {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .claim__done {
+    background: var(--bg-soft);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .claim__later {
+    margin: 14px 0 0;
   }
 </style>

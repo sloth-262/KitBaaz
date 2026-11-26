@@ -84,3 +84,31 @@ export function orderTotals(unitPrice: number, quantity: number, advancePercent:
   const advance = Math.ceil((total * advancePercent) / 100);
   return { total, advance, balance: total - advance };
 }
+
+/* ---------------- payment claims (thank-you page) ---------------- */
+
+export type PaymentClaim = { orderId: string; key: string; trxId: string; paidFrom: string };
+export type ClaimErrors = Partial<Record<'trxId' | 'paidFrom', string>>;
+
+export const ORDER_ID_PATTERN = /^KB-[A-Z0-9-]{4,20}$/;
+
+// bKash and Nagad transaction IDs are 8–10 letters and digits, e.g. 9K3L2M1N0P.
+export const normalizeTrxId = (raw: string) => toEnDigits(raw).replace(/[\s\-]/g, '').toUpperCase();
+
+export function validatePaymentClaim(raw: Record<string, unknown>): { input: PaymentClaim; errors: ClaimErrors } {
+  const errors: ClaimErrors = {};
+  const trxId = normalizeTrxId(clean(raw.trxId, 40));
+  if (!/^[A-Z0-9]{6,20}$/.test(trxId)) errors.trxId = 'সঠিক TrxID লিখুন (পেমেন্টের SMS-এ পাবেন)।';
+  const paidFromRaw = clean(raw.paidFrom, 30);
+  const paidFrom = normalizePhone(paidFromRaw);
+  if (!paidFrom) errors.paidFrom = 'যে নম্বর থেকে টাকা পাঠিয়েছেন, সেটি লিখুন।';
+  return {
+    input: {
+      orderId: clean(raw.orderId, 30).toUpperCase(),
+      key: clean(raw.key, 40).toLowerCase(),
+      trxId,
+      paidFrom: paidFrom ?? paidFromRaw,
+    },
+    errors,
+  };
+}

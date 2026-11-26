@@ -43,6 +43,11 @@ const COLUMNS = [
   ['message', 'Customer message (draft)', 340],
   ['whatsapp', 'Send on WhatsApp', 140],
   ['source', 'Source', 80],
+  // Filled in by the customer on the thank-you page. Shakil checks them in the
+  // bKash / Nagad app before setting Status to "Advance received".
+  ['trxId', 'TrxID', 120],
+  ['paidFrom', 'Paid from', 115],
+  ['claimedAt', 'Payment claimed at', 140],
 ];
 
 const PAYMENT_LABELS = { bkash: 'বিকাশ', nagad: 'নগদ', bank: 'ব্যাংক ট্রান্সফার' };
@@ -78,6 +83,8 @@ function doPost(e) {
   const secret = PropertiesService.getScriptProperties().getProperty('WEBHOOK_SECRET');
   if (!secret || body.secret !== secret) return json_({ ok: false, error: 'forbidden' });
 
+  if (body.action === 'payment') return handlePaymentClaim_(body.payment);
+
   const problem = checkOrder_(body.order);
   if (problem) return json_({ ok: false, error: problem });
 
@@ -99,6 +106,107 @@ function doPost(e) {
 
 function doGet() {
   return json_({ ok: true, service: 'KitBaaz orders' });
+}
+
+/* ------------------------------------------------------------------ */
+/* Payment claims (customer says "I paid, here is the TrxID")         */
+/* The status is never changed here: Shakil confirms in his app.      */
+/* ------------------------------------------------------------------ */
+
+function handlePaymentClaim_(p) {
+  if (!p || !/^KB-[A-Z0-9-]{4,20}$/.test(String(p.orderId || ''))) return json_({ ok: false, error: 'bad_order_id' });
+  if (!/^[A-Z0-9]{6,20}$/.test(String(p.trxId || ''))) return json_({ ok: false, error: 'bad_trx_id' });
+  if (!/^01[3-9]\d{8}$/.test(String(p.paidFrom || ''))) return json_({ ok: false, error: 'bad_phone' });
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return json_({ ok: false, error: 'busy' });
+  let result;
+  try {
+    result = savePaymentClaim_(p);
+  } catch (err) {
+    console.error('savePaymentClaim_ failed', err);
+    return json_({ ok: false, error: 'save_failed' });
+  } finally {
+    lock.releaseLock();
+  }
+  if (result.error) return json_({ ok: false, error: result.error });
+  if (!result.repeat) notifyPaymentClaim_(result.row);
+  return json_({ ok: true, repeat: result.repeat });
+}
+
+function savePaymentClaim_(p) {
+  const sheet = ordersSheet_();
+  const cols = cols_(sheet);
+  const last = sheet.getLastRow();
+  if (last < 2) return { error: 'not_found' };
+  const ids = sheet.getRange(2, cols.id, last - 1, 1).getValues();
+  const index = ids.findIndex(([id]) => id === p.orderId);
+  if (index < 0) return { error: 'not_found' };
+  const rowNum = index + 2;
+
+  const values = sheet.getRange(rowNum, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const get = (key) => values[cols[key] - 1];
+  if (get('status') === 'Cancelled') return { error: 'cancelled' };
+
+  const previous = String(get('trxId') || '');
+  const repeat = previous === p.trxId && String(get('paidFrom')) === p.paidFrom;
+  if (!repeat) {
+    sheet.getRange(rowNum, cols.paidFrom).setNumberFormat('@');
+    sheet.getRange(rowNum, cols.trxId).setValue(p.trxId);
+    sheet.getRange(rowNum, cols.paidFrom).setValue(p.paidFrom);
+    sheet.getRange(rowNum, cols.claimedAt).setValue(new Date());
+    if (previous) {
+      const notes = String(get('notes') || '');
+      sheet.getRange(rowNum, cols.notes).setValue(`${notes ? notes + ' | ' : ''}আগের TrxID: ${previous}`);
+    }
+  }
+  return {
+    repeat: repeat,
+    row: {
+      rowNum: rowNum,
+      id: p.orderId,
+      customer: get('customer'),
+      phone: String(get('phone')),
+      advanceDue: get('advanceDue'),
+      payment: get('payment'),
+      status: get('status'),
+      trxId: p.trxId,
+      paidFrom: p.paidFrom,
+      previousTrxId: previous && previous !== p.trxId ? previous : '',
+    },
+  };
+}
+
+function notifyPaymentClaim_(row) {
+  const url = rowUrl_(row.rowNum);
+  const otherNumber = row.paidFrom !== row.phone ? ` (অর্ডারের নম্বর ${row.phone} থেকে আলাদা)` : '';
+  const text =
+    `অর্ডার নম্বর: ${row.id}\n` +
+    `নাম: ${row.customer}\n` +
+    `মাধ্যম: ${row.payment}\n` +
+    `TrxID: ${row.trxId}\n` +
+    `যে নম্বর থেকে: ${row.paidFrom}${otherNumber}\n` +
+    `অগ্রিম হওয়ার কথা: ${tk_(row.advanceDue)}` +
+    (row.previousTrxId ? `\nআগের TrxID: ${row.previousTrxId}` : '') +
+    `\n\n${row.payment} অ্যাপে TrxID মিলিয়ে দেখুন। ঠিক থাকলে Status দিন "Advance received"।`;
+
+  sendAlertEmail_(`পেমেন্ট দাবি ${row.id}: TrxID ${row.trxId}`, `গ্রাহক জানিয়েছেন তিনি অগ্রিম পাঠিয়েছেন।\n\n${text}\n\nশিটে দেখুন: ${url}`);
+  sendTelegram_(`💰 পেমেন্ট দাবি (যাচাই করুন)\n\n${text}\n\nশিট: ${url}`);
+  sendAgentEvent_({
+    event: 'payment.claimed',
+    payment: {
+      orderId: row.id,
+      trxId: row.trxId,
+      paidFrom: row.paidFrom,
+      orderPhone: row.phone,
+      method: row.payment,
+      advanceDue: row.advanceDue,
+      status: row.status,
+      previousTrxId: row.previousTrxId,
+    },
+    note: 'Not verified. A person must check the TrxID in the payment app before changing the status.',
+    sheetUrl: url,
+  });
 }
 
 function checkOrder_(o) {
@@ -319,8 +427,7 @@ function paymentLine_(o, s) {
 /* ------------------------------------------------------------------ */
 
 function notifyNewOrder_(row) {
-  const settings = readSettings_();
-  const sheetUrl = `${SpreadsheetApp.getActiveSpreadsheet().getUrl()}#gid=${ordersSheet_().getSheetId()}&range=A${row.rowNum}`;
+  const url = rowUrl_(row.rowNum);
   const wa = row.message ? waLink_(row.phone, row.message) : '';
   const summary =
     `অর্ডার নম্বর: ${row.id}\n` +
@@ -332,73 +439,86 @@ function notifyNewOrder_(row) {
     `অগ্রিম: ${tk_(row.advanceDue)} (${row.payment})` +
     (row.notes ? `\nনোট: ${row.notes}` : '');
 
-  const to = String(settings['Alert email'] || Session.getEffectiveUser().getEmail() || '').trim();
-  if (to) {
-    try {
-      MailApp.sendEmail({
-        to: to,
-        subject: `নতুন প্রি-অর্ডার ${row.id}: ${row.customer}, ${row.kit} × ${bn_(row.quantity)}টি`,
-        body:
-          `নতুন প্রি-অর্ডার এসেছে।\n\n${summary}\n\n` +
-          `গ্রাহককে পাঠানোর মেসেজ (খসড়া, পাঠানোর আগে দেখে নিন):\n` +
-          `----------\n${row.message}\n----------\n\n` +
-          `WhatsApp-এ পাঠাতে: ${wa}\n\nশিটে দেখুন: ${sheetUrl}`,
-      });
-    } catch (err) {
-      console.error('Alert email failed', err);
-    }
-  }
+  sendAlertEmail_(
+    `নতুন প্রি-অর্ডার ${row.id}: ${row.customer}, ${row.kit} × ${bn_(row.quantity)}টি`,
+    `নতুন প্রি-অর্ডার এসেছে।\n\n${summary}\n\n` +
+      `গ্রাহককে পাঠানোর মেসেজ (খসড়া, পাঠানোর আগে দেখে নিন):\n` +
+      `----------\n${row.message}\n----------\n\n` +
+      `WhatsApp-এ পাঠাতে: ${wa}\n\nশিটে দেখুন: ${url}`,
+  );
 
+  let text = `🆕 নতুন প্রি-অর্ডার\n\n${summary}\n\nশিট: ${url}`;
+  if (wa && text.length + wa.length < 3900) text += `\n\nWhatsApp-এ পাঠান: ${wa}`;
+  sendTelegram_(text);
+
+  sendAgentEvent_({
+    event: 'order.created',
+    order: {
+      id: row.id,
+      date: row.date.toISOString(),
+      customer: row.customer,
+      phone: row.phone,
+      address: row.address,
+      kit: row.kit,
+      quantity: row.quantity,
+      price: row.price,
+      advanceDue: row.advanceDue,
+      paymentMethod: row.payment,
+      status: row.status,
+      notes: row.notes,
+    },
+    customerMessageDraft: row.message,
+    whatsappLink: wa,
+    sheetUrl: url,
+  });
+}
+
+function sendAlertEmail_(subject, body) {
+  const settings = readSettings_();
+  const to = String(settings['Alert email'] || Session.getEffectiveUser().getEmail() || '').trim();
+  if (!to) return;
+  try {
+    MailApp.sendEmail({ to: to, subject: subject, body: body });
+  } catch (err) {
+    console.error('Alert email failed', err);
+  }
+}
+
+function sendTelegram_(text) {
   const props = PropertiesService.getScriptProperties();
   const token = props.getProperty('TELEGRAM_BOT_TOKEN');
   const chatId = props.getProperty('TELEGRAM_CHAT_ID');
-  if (token && chatId) {
-    let text = `🆕 নতুন প্রি-অর্ডার\n\n${summary}\n\nশিট: ${sheetUrl}`;
-    if (wa && text.length + wa.length < 3900) text += `\n\nWhatsApp-এ পাঠান: ${wa}`;
-    try {
-      UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'post',
-        payload: { chat_id: chatId, text: text, disable_web_page_preview: 'true' },
-        muteHttpExceptions: true,
-      });
-    } catch (err) {
-      console.error('Telegram alert failed', err);
-    }
+  if (!token || !chatId) return;
+  try {
+    UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'post',
+      payload: { chat_id: chatId, text: text, disable_web_page_preview: 'true' },
+      muteHttpExceptions: true,
+    });
+  } catch (err) {
+    console.error('Telegram alert failed', err);
   }
+}
 
+function sendAgentEvent_(payload) {
+  const props = PropertiesService.getScriptProperties();
   const agentUrl = props.getProperty('AGENT_WEBHOOK_URL');
-  if (agentUrl) {
-    try {
-      UrlFetchApp.fetch(agentUrl, {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { 'X-KitBaaz-Secret': props.getProperty('AGENT_WEBHOOK_SECRET') || '' },
-        payload: JSON.stringify({
-          event: 'order.created',
-          order: {
-            id: row.id,
-            date: row.date.toISOString(),
-            customer: row.customer,
-            phone: row.phone,
-            address: row.address,
-            kit: row.kit,
-            quantity: row.quantity,
-            price: row.price,
-            advanceDue: row.advanceDue,
-            paymentMethod: row.payment,
-            status: row.status,
-            notes: row.notes,
-          },
-          customerMessageDraft: row.message,
-          whatsappLink: wa,
-          sheetUrl: sheetUrl,
-        }),
-        muteHttpExceptions: true,
-      });
-    } catch (err) {
-      console.error('Agent webhook failed', err);
-    }
+  if (!agentUrl) return;
+  try {
+    UrlFetchApp.fetch(agentUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'X-KitBaaz-Secret': props.getProperty('AGENT_WEBHOOK_SECRET') || '' },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+  } catch (err) {
+    console.error('Agent webhook failed', err);
   }
+}
+
+function rowUrl_(rowNum) {
+  return `${SpreadsheetApp.getActiveSpreadsheet().getUrl()}#gid=${ordersSheet_().getSheetId()}&range=A${rowNum}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -424,6 +544,12 @@ function setupSheet() {
   const orders = ss.getSheetByName(SHEETS.orders) || ss.insertSheet(SHEETS.orders, 0);
   if (orders.getLastRow() === 0) {
     orders.getRange(1, 1, 1, COLUMNS.length).setValues([COLUMNS.map((c) => c[1])]);
+  } else {
+    // Sheet made by an older version of this script: add any new columns at the end.
+    const headers = orders.getRange(1, 1, 1, orders.getLastColumn()).getValues()[0];
+    COLUMNS.filter(([, h]) => headers.indexOf(h) < 0).forEach(([, h]) => {
+      orders.getRange(1, orders.getLastColumn() + 1).setValue(h);
+    });
   }
   const cols = cols_(orders);
   orders.setFrozenRows(1);
@@ -434,6 +560,9 @@ function setupSheet() {
   col('date').setNumberFormat('dd/mm/yyyy hh:mm');
   col('deliveryDate').setNumberFormat('dd/mm/yyyy');
   col('phone').setNumberFormat('@');
+  col('paidFrom').setNumberFormat('@');
+  col('trxId').setNumberFormat('@');
+  col('claimedAt').setNumberFormat('dd/mm/yyyy hh:mm');
   ['price', 'advancePaid', 'balance', 'advanceDue'].forEach((k) => col(k).setNumberFormat('#,##0'));
   // One line per order: long text is cut off in the cell (click it to read all of it).
   orders.getRange(2, 1, rows, orders.getLastColumn())
@@ -456,9 +585,19 @@ function setupSheet() {
     'Review asked': '#f1f8e9',
     'Cancelled': '#eeeeee',
   };
+  // Bright yellow: the customer says they paid, but the status is still Pre-order.
+  const L = (key) => colLetter_(cols[key]);
+  const claimToCheck = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied(`=AND($${L('trxId')}2<>"",$${L('status')}2="Pre-order")`)
+    .setBackground('#ffeb3b')
+    .setBold(true)
+    .setRanges([col('trxId'), col('paidFrom'), col('claimedAt')])
+    .build();
   orders.setConditionalFormatRules(
-    STATUSES.map((s) =>
-      SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(s).setBackground(colors[s]).setRanges([col('status')]).build(),
+    [claimToCheck].concat(
+      STATUSES.map((s) =>
+        SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(s).setBackground(colors[s]).setRanges([col('status')]).build(),
+      ),
     ),
   );
 
@@ -515,6 +654,7 @@ function buildSummary_(summary, cols) {
     ['Order value (not cancelled)', `=SUMIFS(${ref('price')},${active})`],
     ['Advance collected', `=SUMIFS(${ref('advancePaid')},${active})`],
     ['Advance still to come (Pre-order)', `=SUMIFS(${ref('advanceDue')},${status},"Pre-order")`],
+    ['Payments to check (TrxID given, still Pre-order)', `=COUNTIFS(${ref('trxId')},"<>",${status},"Pre-order")`],
     [
       'Balance to collect (not delivered)',
       `=SUMIFS(${ref('balance')},${active},${status},"<>Pre-order",${status},"<>Delivered",${status},"<>Review asked")`,

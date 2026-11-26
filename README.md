@@ -26,6 +26,8 @@ Built with [Astro](https://astro.build) and deployed to Cloudflare Workers.
 | Pre-order form | `src/pages/order.astro` |
 | Thank-you page | `src/pages/thanks.astro` |
 | Order handler (server) | `src/pages/api/order.ts` |
+| Payment TrxID handler (server) | `src/pages/api/payment.ts` |
+| Talking to the Google Sheet | `src/lib/sheet.ts` |
 | Order rules (phone check, totals) | `src/lib/order.ts` |
 | Order sheet script + setup guide | `apps-script/` |
 | Shared layout, fonts | `src/layouts/Base.astro` |

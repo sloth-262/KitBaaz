@@ -6,6 +6,7 @@
 - writes a Bangla customer message draft and a "WhatsApp-এ পাঠান" link for every order
 - refreshes the draft when the Status changes (and fills Advance paid / Delivery date)
 - emails a new-order alert (plus Telegram and the agent webhook, if set up)
+- records the TrxID a customer enters on the thank-you page, and alerts you to check it
 - keeps a Summary tab: orders per status, advance collected, kits to order
 
 Do every step while signed in to the **KitBaaz Google account**, so the sheet,
@@ -84,8 +85,26 @@ npx wrangler secret put ORDER_WEBHOOK_SECRET
 
 ## Changing the script later
 
-After pasting a new `Code.gs`: **Deploy > Manage deployments > pencil icon > Version: New version > Deploy**.
-The URL stays the same. Without this step the website keeps using the old version.
+1. Paste the new `Code.gs` and save.
+2. **Deploy > Manage deployments > pencil icon > Version: New version > Deploy**.
+   The URL stays the same. Without this step the website keeps using the old version.
+3. In the sheet: **KitBaaz > Set up sheet**. This adds any new columns at the end and
+   refreshes formats and the Summary tab. Existing orders are not touched.
+
+## Confirming advance payments
+
+The website never confirms a payment by itself. You do, in the bKash / Nagad app.
+
+1. After paying, the customer can enter their **TrxID** and the number they paid from on the
+   thank-you page. It lands in the **TrxID**, **Paid from** and **Payment claimed at** columns,
+   which turn **bright yellow** while the status is still `Pre-order`, and you get a
+   "পেমেন্ট দাবি" email. The Summary tab counts these under "Payments to check".
+2. Open the bKash / Nagad app and find that TrxID. Check the **amount** matches **Advance due**.
+3. If it matches: set **Status** to `Advance received` (fix **Advance paid** if the amount differs),
+   then send the updated draft with **WhatsApp-এ পাঠান**. The yellow goes away.
+4. If it does not match, or there is no such TrxID: leave the status, and call the customer.
+
+Customers who do not use the box can send the TrxID on WhatsApp; type it into the **TrxID** column yourself.
 
 ## Optional: Telegram alerts
 
@@ -101,7 +120,7 @@ The URL stays the same. Without this step the website keeps using the old versio
 |---|---|---|
 | `WEBHOOK_SECRET` | Set up sheet | Shared secret with the website |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | you (optional) | Telegram alerts |
-| `AGENT_WEBHOOK_URL`, `AGENT_WEBHOOK_SECRET` | you (Day 5) | New-order events for the agent |
+| `AGENT_WEBHOOK_URL`, `AGENT_WEBHOOK_SECRET` | you (Day 5) | `order.created` and `payment.claimed` events for the agent |
 | `seq_YYMMDD` | the script | Order number counter per day. Do not edit. |
 
 ## Rules for the Orders tab

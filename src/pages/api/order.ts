@@ -5,14 +5,12 @@
 // post, redirect to the thank-you page or back to the form).
 
 import type { APIRoute } from 'astro';
-import {
-  ORDER_WEBHOOK_URL,
-  ORDER_WEBHOOK_SECRET,
-  TURNSTILE_SECRET_KEY,
-} from 'astro:env/server';
+import { TURNSTILE_SECRET_KEY } from 'astro:env/server';
 import { findOrderable, orderableProducts } from '../../data/products';
 import { site } from '../../data/site';
 import { validateOrder, orderTotals, type FieldErrors } from '../../lib/order';
+import { claimKey } from '../../lib/claim-key';
+import { postToSheet, sheetConfigured, linkSecret, NotConfiguredError } from '../../lib/sheet';
 
 export const prerender = false;
 
@@ -97,6 +95,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
   const thanks = new URLSearchParams({
     id: orderId,
+    k: await claimKey(linkSecret(), orderId), // lets the customer add a TrxID later
     kit: kit.slug,
     qty: String(input.quantity),
     total: String(totals.total),
@@ -108,37 +107,16 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   return redirect(`/thanks/?${thanks}`);
 };
 
-class NotConfiguredError extends Error {}
-
 async function saveOrder(order: Record<string, unknown>): Promise<string> {
-  if (!ORDER_WEBHOOK_URL) {
-    if (import.meta.env.DEV) {
-      // No Sheet connected yet: pretend, so the form can be tested locally.
-      const id = `KB-DEV-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-      console.log('[dev] Order not sent anywhere (ORDER_WEBHOOK_URL is not set):', id, order);
-      return id;
-    }
-    throw new NotConfiguredError('ORDER_WEBHOOK_URL is not set');
+  if (!sheetConfigured() && import.meta.env.DEV) {
+    // No Sheet connected yet: pretend, so the form can be tested locally.
+    const id = `KB-DEV-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    console.log('[dev] Order not sent anywhere (ORDER_WEBHOOK_URL is not set):', id, order);
+    return id;
   }
-
-  const res = await fetch(ORDER_WEBHOOK_URL, {
-    method: 'POST',
-    // text/plain keeps Apps Script happy; the body is still JSON.
-    headers: { 'content-type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ secret: ORDER_WEBHOOK_SECRET ?? '', order }),
-    redirect: 'follow', // Apps Script answers through a redirect
-    signal: AbortSignal.timeout(20_000),
-  });
-
-  const text = await res.text();
-  let data: { ok?: boolean; orderId?: string; error?: string };
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(`Sheet webhook returned non-JSON (HTTP ${res.status}): ${text.slice(0, 200)}`);
-  }
-  if (!res.ok || !data.ok || !data.orderId) {
-    throw new Error(`Sheet webhook rejected the order: ${data.error ?? `HTTP ${res.status}`}`);
+  const data = await postToSheet({ order });
+  if (!data.ok || typeof data.orderId !== 'string') {
+    throw new Error(`Sheet webhook rejected the order: ${data.error ?? 'no order ID'}`);
   }
   return data.orderId;
 }

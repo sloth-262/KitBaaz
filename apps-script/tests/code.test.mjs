@@ -268,3 +268,79 @@ test('menu test order works', () => {
   assert.match(env.cell(2, 'customer'), /^TEST/);
   assert.ok(env.logs.some((l) => l.includes('Test order KB-')));
 });
+
+/* ---------------- payment claims ---------------- */
+
+const claim = (env, payment) => post(env, { secret: env.secret, action: 'payment', payment });
+
+test('a payment claim fills TrxID and Paid from, alerts, and leaves the status alone', () => {
+  const env = setUp();
+  const { orderId } = post(env, { secret: env.secret, order: order() });
+  env.mails.length = 0;
+  const res = claim(env, { orderId, trxId: '9K3L2M1N0P', paidFrom: '01911111111' });
+  assert.deepEqual({ ...res }, { ok: true, repeat: false });
+  assert.equal(env.cell(2, 'trxId'), '9K3L2M1N0P');
+  assert.equal(env.cell(2, 'paidFrom'), '01911111111');
+  assert.ok(isDate(env.cell(2, 'claimedAt')));
+  assert.equal(env.cell(2, 'status'), 'Pre-order');
+  assert.equal(env.cell(2, 'advancePaid'), '');
+  assert.equal(env.mails.length, 1);
+  assert.match(env.mails[0].subject, /পেমেন্ট দাবি .*9K3L2M1N0P/);
+  assert.match(env.mails[0].body, /অর্ডারের নম্বর 01712345678 থেকে আলাদা/); // paid from another number
+});
+
+test('sending the same claim twice alerts once; a new TrxID keeps the old one in Notes', () => {
+  const env = setUp();
+  const { orderId } = post(env, { secret: env.secret, order: order() });
+  env.mails.length = 0;
+  claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: '01712345678' });
+  assert.equal(claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: '01712345678' }).repeat, true);
+  assert.equal(env.mails.length, 1);
+  claim(env, { orderId, trxId: 'CCC333DDD4', paidFrom: '01712345678' });
+  assert.equal(env.cell(2, 'trxId'), 'CCC333DDD4');
+  assert.match(env.cell(2, 'notes'), /আগের TrxID: AAA111BBB2/);
+  assert.equal(env.mails.length, 2);
+});
+
+test('payment claims are checked', () => {
+  const env = setUp();
+  const { orderId } = post(env, { secret: env.secret, order: order() });
+  assert.equal(claim(env, { orderId: 'KB-000000-999', trxId: 'AAA111BBB2', paidFrom: '01712345678' }).error, 'not_found');
+  assert.equal(claim(env, { orderId, trxId: 'x', paidFrom: '01712345678' }).error, 'bad_trx_id');
+  assert.equal(claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: '123' }).error, 'bad_phone');
+  assert.equal(claim(env, { orderId: 'drop table', trxId: 'AAA111BBB2', paidFrom: '01712345678' }).error, 'bad_order_id');
+  assert.equal(post(env, { secret: 'wrong', action: 'payment', payment: { orderId } }).error, 'forbidden');
+  env.orders.set(2, env.cols.status, 'Cancelled');
+  assert.equal(claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: '01712345678' }).error, 'cancelled');
+});
+
+test('the agent gets a payment.claimed event marked as not verified', () => {
+  const env = setUp();
+  env.props.set('AGENT_WEBHOOK_URL', 'https://agent.example/hook');
+  const { orderId } = post(env, { secret: env.secret, order: order() });
+  env.fetches.length = 0;
+  claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: '01712345678' });
+  const payload = JSON.parse(env.fetches[0].opts.payload);
+  assert.equal(payload.event, 'payment.claimed');
+  assert.equal(payload.payment.trxId, 'AAA111BBB2');
+  assert.match(payload.note, /Not verified/);
+});
+
+test('set up adds new columns to a sheet made by an older version, keeping orders', () => {
+  const env = makeEnv();
+  const old = env.ss.insertSheet('Orders', 0);
+  const oldHeaders = env.run('COLUMNS').slice(0, 18).map((c) => c[1]);
+  old.getRange(1, 1, 1, oldHeaders.length).setValues([oldHeaders]);
+  old.getRange(2, 1, 1, 2).setValues([['KB-261126-001', new Date()]]);
+  env.ctx.setupSheet();
+  const headers = old.data[0];
+  assert.equal(headers.length, 21);
+  assert.deepEqual(headers.slice(18), ['TrxID', 'Paid from', 'Payment claimed at']);
+  assert.equal(old.get(2, 1), 'KB-261126-001');
+});
+
+test('summary counts payments waiting to be checked', () => {
+  const { ss } = setUp();
+  const f = [...ss.getSheetByName('Summary').formulas.values()].join('\n');
+  assert.match(f, /COUNTIFS\(Orders!S2:S,"<>",Orders!K2:K,"Pre-order"\)/);
+});
