@@ -435,7 +435,11 @@ function setupSheet() {
   col('deliveryDate').setNumberFormat('dd/mm/yyyy');
   col('phone').setNumberFormat('@');
   ['price', 'advancePaid', 'balance', 'advanceDue'].forEach((k) => col(k).setNumberFormat('#,##0'));
-  col('message').setWrap(true).setVerticalAlignment('top');
+  // One line per order: long text is cut off in the cell (click it to read all of it).
+  orders.getRange(2, 1, rows, orders.getLastColumn())
+    .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP)
+    .setVerticalAlignment('middle');
+  if (orders.getLastRow() > 1) orders.setRowHeightsForced(2, orders.getLastRow() - 1, 24);
   col('status').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(STATUSES, true).setAllowInvalid(false).build(),
   );

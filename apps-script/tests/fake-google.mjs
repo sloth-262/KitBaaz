@@ -57,7 +57,7 @@ class FakeRange {
   getNumRows() { return this.rows; }
   getNumColumns() { return this.cols; }
 }
-for (const m of ['setFontWeight', 'setBackground', 'setWrap', 'setFontSize', 'setVerticalAlignment', 'setDataValidation']) {
+for (const m of ['setFontWeight', 'setBackground', 'setWrap', 'setWrapStrategy', 'setFontSize', 'setVerticalAlignment', 'setDataValidation']) {
   FakeRange.prototype[m] = function () { return this; };
 }
 
@@ -82,7 +82,7 @@ class FakeSheet {
   getRange(r, c, nr, nc) { return typeof r === 'string' ? new FakeRange(this, ...a1(r)) : new FakeRange(this, r, c, nr, nc); }
   clear() { this.data = []; this.formulas.clear(); }
 }
-for (const m of ['setFrozenRows', 'setColumnWidth', 'setConditionalFormatRules']) {
+for (const m of ['setFrozenRows', 'setColumnWidth', 'setConditionalFormatRules', 'setRowHeightsForced']) {
   FakeSheet.prototype[m] = function () { return this; };
 }
 
@@ -111,6 +111,7 @@ export function makeEnv() {
         const b = { setText: (t) => ((v.text = t), b), setLinkUrl: (u) => ((v.url = u), b), build: () => v };
         return b;
       },
+      WrapStrategy: { CLIP: 'CLIP', WRAP: 'WRAP', OVERFLOW: 'OVERFLOW' },
       newDataValidation: chain,
       newConditionalFormatRule: chain,
     },
