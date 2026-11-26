@@ -12,7 +12,8 @@
     "astro": "astro",
     "generate-types": "wrangler types",
     "deploy": "astro build && wrangler deploy",
-    "check": "astro check"
+    "check": "astro check",
+    "test:apps-script": "node --test apps-script/tests/code.test.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.9",

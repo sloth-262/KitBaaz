@@ -38,9 +38,19 @@ export const products: Product[] = [
 
 export const activeProducts = () => products.filter((p) => p.active);
 
+// During local development only (npm run dev), kits without a price use this
+// test price so the order form can be tried end to end. Never used in a build.
+export const DEV_TEST_PRICE = 4500;
+
+export type OrderableProduct = Product & { price: number; testPrice: boolean };
+
 // Kits a customer can pre-order right now: active and with a price.
-export const orderableProducts = () =>
-  activeProducts().filter((p): p is Product & { price: number } => p.price !== null);
+export const orderableProducts = (): OrderableProduct[] =>
+  activeProducts().flatMap((p): OrderableProduct[] => {
+    if (p.price !== null) return [{ ...p, price: p.price, testPrice: false }];
+    if (import.meta.env.DEV) return [{ ...p, price: DEV_TEST_PRICE, testPrice: true }];
+    return [];
+  });
 
 export const findOrderable = (slug: string) => orderableProducts().find((p) => p.slug === slug);
 

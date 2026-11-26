@@ -77,6 +77,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     address: input.address,
     kit: kit.code,
     kitName: kit.name,
+    kitNameBn: kit.nameBn,
     quantity: input.quantity,
     unitPrice: kit.price,
     total: totals.total,

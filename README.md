@@ -12,6 +12,7 @@ Built with [Astro](https://astro.build) and deployed to Cloudflare Workers.
 | `npm run dev` | Start the local site at http://localhost:4321 |
 | `npm run build` | Build the site into `dist/` |
 | `npm run check` | Type-check the project |
+| `npm run test:apps-script` | Test the order sheet script |
 | `npm run deploy` | Build and publish to Cloudflare (needs `npx wrangler login` first) |
 
 ## Where things are
@@ -26,6 +27,7 @@ Built with [Astro](https://astro.build) and deployed to Cloudflare Workers.
 | Thank-you page | `src/pages/thanks.astro` |
 | Order handler (server) | `src/pages/api/order.ts` |
 | Order rules (phone check, totals) | `src/lib/order.ts` |
+| Order sheet script + setup guide | `apps-script/` |
 | Shared layout, fonts | `src/layouts/Base.astro` |
 | Colours and base styles | `src/styles/global.css` |
 
