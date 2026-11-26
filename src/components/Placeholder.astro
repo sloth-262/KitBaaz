@@ -1,0 +1,43 @@
+---
+// Stand-in illustration. No ACEBOTT images may be used until Shakil confirms
+// written permission, so every product picture is this placeholder for now.
+interface Props {
+  label?: string;
+}
+const { label = 'ছবি শীঘ্রই' } = Astro.props;
+---
+
+<div class="placeholder" role="img" aria-label={label}>
+  <svg viewBox="0 0 240 160" aria-hidden="true">
+    <rect width="240" height="160" fill="#e6f4f3"></rect>
+    <rect x="70" y="44" width="100" height="72" rx="16" fill="#0b7a75"></rect>
+    <circle cx="100" cy="80" r="11" fill="#fff"></circle>
+    <circle cx="140" cy="80" r="11" fill="#fff"></circle>
+    <rect x="114" y="22" width="12" height="24" rx="6" fill="#f28c28"></rect>
+    <rect x="52" y="66" width="18" height="28" rx="6" fill="#075b57"></rect>
+    <rect x="170" y="66" width="18" height="28" rx="6" fill="#075b57"></rect>
+  </svg>
+  <span>{label}</span>
+</div>
+
+<style>
+  .placeholder {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #e6f4f3;
+  }
+  .placeholder svg {
+    width: 100%;
+  }
+  .placeholder span {
+    position: absolute;
+    right: 10px;
+    bottom: 8px;
+    font-size: 0.8rem;
+    color: var(--brand-dark);
+    background: rgba(255, 255, 255, 0.85);
+    padding: 0 8px;
+    border-radius: 6px;
+  }
+</style>

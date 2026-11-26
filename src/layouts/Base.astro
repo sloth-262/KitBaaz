@@ -1,0 +1,48 @@
+---
+// Only the Bangla and basic Latin subsets are loaded, in the weights the site uses.
+import '@fontsource/hind-siliguri/bengali-400.css';
+import '@fontsource/hind-siliguri/bengali-600.css';
+import '@fontsource/hind-siliguri/bengali-700.css';
+import '@fontsource/hind-siliguri/latin-400.css';
+import '@fontsource/hind-siliguri/latin-600.css';
+import '@fontsource/hind-siliguri/latin-700.css';
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { site } from '../data/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = 'KitBaaz: শিশুদের জন্য রোবোটিক্স ও STEM কিট, এখন বাংলাদেশে প্রি-অর্ডারে।',
+} = Astro.props;
+
+const fullTitle = title ? `${title} | ${site.name}` : `${site.name} | ${site.tagline}`;
+---
+
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0b7a75" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="bn_BD" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{fullTitle}</title>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

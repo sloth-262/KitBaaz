@@ -1,0 +1,222 @@
+---
+import Base from '../layouts/Base.astro';
+import Placeholder from '../components/Placeholder.astro';
+import { site, whatsappLink, messengerLink } from '../data/site';
+import { activeProducts } from '../data/products';
+import { toBnDigits, formatTk } from '../lib/bn';
+
+const advance = toBnDigits(site.advancePercent);
+const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
+const kits = activeProducts();
+const wa = whatsappLink('আসসালামু আলাইকুম, KitBaaz-এর কিট সম্পর্কে জানতে চাই।');
+const messenger = messengerLink();
+
+const steps = [
+  { title: 'কিট বেছে নিন', text: 'পছন্দের কিট বেছে নিয়ে প্রি-অর্ডার ফর্মটি পূরণ করুন।' },
+  {
+    title: `${advance}% অগ্রিম দিন`,
+    text: 'বিকাশ, নগদ বা ব্যাংকের মাধ্যমে অগ্রিম পাঠান। আমরা ফোনে নিশ্চিত করব।',
+  },
+  { title: 'বাসায় কিট পৌঁছাবে', text: `অর্ডার নিশ্চিত হওয়ার ${days} দিনের মধ্যে কিট আপনার ঠিকানায়।` },
+];
+
+const trust = [
+  { title: 'স্বচ্ছ প্রি-অর্ডার', text: 'অর্ডারের প্রতিটি ধাপে আপনাকে আপডেট জানানো হবে।' },
+  { title: `মাত্র ${advance}% অগ্রিম`, text: 'পুরো টাকা আগে দিতে হবে না।' },
+  { title: 'সরাসরি যোগাযোগ', text: 'ফোন, WhatsApp বা Messenger-এ যেকোনো প্রশ্ন করুন।' },
+];
+---
+
+<Base>
+  <section class="hero">
+    <div class="container hero__inner">
+      <div>
+        <p class="hero__eyebrow">এখন প্রি-অর্ডার চলছে</p>
+        <h1>খেলতে খেলতে শিখুক রোবোটিক্স আর কোডিং</h1>
+        <p class="hero__lead">
+          KitBaaz নিয়ে এসেছে শিশুদের জন্য ACEBOTT STEM ও রোবোটিক্স কিট। নিজের হাতে বানিয়ে শেখা,
+          বয়স {toBnDigits(8)}+ থেকে।
+        </p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#kits">কিট দেখুন</a>
+          {wa && <a class="btn btn--outline" href={wa}>WhatsApp-এ কথা বলুন</a>}
+        </div>
+      </div>
+      <Placeholder label="প্রতীকী ছবি" />
+    </div>
+  </section>
+
+  <section class="section" id="kits">
+    <div class="container">
+      <h2>আমাদের কিট</h2>
+      <p class="section-lead">
+        প্রতিটি কিট প্রি-অর্ডারে পাওয়া যায়। ডেলিভারি {days} দিনের মধ্যে।
+      </p>
+      <div class="grid grid--3">
+        {
+          kits.map((kit) => (
+            <article class="card kit">
+              <Placeholder />
+              <h3>{kit.nameBn}</h3>
+              <p class="kit__meta">
+                {kit.code} · বয়স {toBnDigits(kit.ageMin)}+
+              </p>
+              <p>{kit.summaryBn}</p>
+              <p class="kit__price">
+                {kit.price ? formatTk(kit.price) : 'দাম শীঘ্রই জানানো হবে'}
+              </p>
+              <a class="btn btn--primary" href={`/kits/${kit.slug}`} aria-disabled="true">
+                বিস্তারিত শীঘ্রই
+              </a>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft" id="how">
+    <div class="container">
+      <h2>কীভাবে প্রি-অর্ডার করবেন</h2>
+      <ol class="grid grid--3 steps">
+        {
+          steps.map((step, i) => (
+            <li class="card">
+              <span class="steps__num">{toBnDigits(i + 1)}</span>
+              <h3>{step.title}</h3>
+              <p>{step.text}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2>কেন KitBaaz</h2>
+      <div class="grid grid--3">
+        {
+          trust.map((t) => (
+            <div class="card">
+              <h3>{t.title}</h3>
+              <p>{t.text}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft" id="contact">
+    <div class="container">
+      <h2>যোগাযোগ</h2>
+      <p class="section-lead">যেকোনো প্রশ্নে আমাদের সাথে কথা বলুন।</p>
+      <ul class="contact">
+        <li>
+          <strong>ফোন</strong>
+          {site.phone ? <a href={`tel:${site.phone}`}>{toBnDigits(site.phone)}</a> : <span>শীঘ্রই</span>}
+        </li>
+        <li>
+          <strong>WhatsApp</strong>
+          {wa ? <a href={wa}>মেসেজ পাঠান</a> : <span>শীঘ্রই</span>}
+        </li>
+        <li>
+          <strong>Messenger</strong>
+          {messenger ? <a href={messenger}>মেসেজ পাঠান</a> : <span>শীঘ্রই</span>}
+        </li>
+        <li>
+          <strong>ইমেইল</strong>
+          {site.email ? <a href={`mailto:${site.email}`}>{site.email}</a> : <span>শীঘ্রই</span>}
+        </li>
+      </ul>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    background: linear-gradient(180deg, var(--bg-soft), var(--bg));
+    padding: 32px 0 40px;
+  }
+  .hero__inner {
+    display: grid;
+    gap: 24px;
+    align-items: center;
+  }
+  @media (min-width: 720px) {
+    .hero__inner {
+      grid-template-columns: 1.1fr 1fr;
+    }
+    .hero {
+      padding: 64px 0;
+    }
+  }
+  .hero__eyebrow {
+    display: inline-block;
+    background: #fff3e6;
+    color: var(--accent-dark);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 2px 12px;
+    border-radius: 999px;
+    margin-bottom: 12px;
+  }
+  .hero__lead {
+    color: var(--ink-soft);
+    font-size: 1.05rem;
+  }
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .kit h3 {
+    margin-top: 16px;
+  }
+  .kit__meta {
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    margin-bottom: 0.5em;
+  }
+  .kit__price {
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--brand-dark);
+  }
+  .steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .steps__num {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--brand);
+    color: #fff;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .contact {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .contact li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+  }
+  .contact span {
+    color: var(--ink-soft);
+  }
+</style>

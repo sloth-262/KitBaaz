@@ -1,0 +1,50 @@
+---
+import Logo from './Logo.astro';
+---
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a href="/" class="site-header__brand" aria-label="KitBaaz হোম">
+      <Logo />
+    </a>
+    <nav aria-label="প্রধান মেনু">
+      <a href="/#kits">কিট</a>
+      <a href="/#how">কীভাবে অর্ডার</a>
+      <a href="/#contact">যোগাযোগ</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1px solid var(--line);
+  }
+  .site-header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 60px;
+  }
+  .site-header__brand {
+    text-decoration: none;
+  }
+  nav {
+    display: flex;
+    gap: 14px;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  nav a {
+    color: var(--ink);
+    text-decoration: none;
+    padding: 8px 0;
+  }
+  nav a:hover {
+    color: var(--brand);
+  }
+</style>

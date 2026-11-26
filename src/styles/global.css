@@ -1,0 +1,163 @@
+:root {
+  --ink: #17252a;
+  --ink-soft: #4a5b61;
+  --bg: #ffffff;
+  --bg-soft: #f3f8f7;
+  --brand: #0b7a75;
+  --brand-dark: #075b57;
+  --accent: #f28c28;
+  --accent-dark: #c96a10;
+  --line: #dbe5e3;
+  --radius: 14px;
+  --gutter: 16px;
+  --max: 1080px;
+  --font: 'Hind Siliguri', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.7; /* Bangla needs more line height than Latin text */
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+a {
+  color: var(--brand);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.35;
+  margin: 0 0 0.5em;
+  font-weight: 700;
+}
+
+h1 {
+  font-size: clamp(1.75rem, 6vw, 2.75rem);
+}
+
+h2 {
+  font-size: clamp(1.4rem, 4.5vw, 2rem);
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.section {
+  padding: 48px 0;
+}
+
+.section--soft {
+  background: var(--bg-soft);
+}
+
+.section-lead {
+  color: var(--ink-soft);
+  max-width: 640px;
+  margin-bottom: 28px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px; /* comfortable tap target */
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: #1b1208;
+}
+
+.btn--primary:hover {
+  background: var(--accent-dark);
+  color: #fff;
+}
+
+.btn--outline {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: transparent;
+}
+
+.btn--outline:hover {
+  background: var(--brand);
+  color: #fff;
+}
+
+.btn[aria-disabled='true'] {
+  background: var(--line);
+  color: var(--ink-soft);
+  cursor: default;
+  pointer-events: none;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 720px) {
+  .grid--3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .section {
+    padding: 72px 0;
+  }
+}
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card > :last-child {
+  margin-bottom: 0;
+}
