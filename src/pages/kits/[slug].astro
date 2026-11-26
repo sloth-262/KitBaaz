@@ -3,7 +3,8 @@
 import type { GetStaticPaths } from 'astro';
 import Base from '../../layouts/Base.astro';
 import Placeholder from '../../components/Placeholder.astro';
-import { activeProducts, advanceAmount, type Product } from '../../data/products';
+import TestPriceNote from '../../components/TestPriceNote.astro';
+import { activeProducts, advanceAmount, findOrderable, type Product } from '../../data/products';
 import { site, whatsappLink, paymentLabelsBn } from '../../data/site';
 import { toBnDigits, formatTk } from '../../lib/bn';
 
@@ -17,8 +18,9 @@ interface Props {
 const { kit } = Astro.props;
 const advancePct = toBnDigits(site.advancePercent);
 const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
-const price = kit.price ? formatTk(kit.price) : null;
-const advance = kit.price ? formatTk(advanceAmount(kit.price, site.advancePercent)) : null;
+const orderable = findOrderable(kit.slug); // includes the test price while site.testPrices is on
+const price = orderable ? formatTk(orderable.price) : null;
+const advance = orderable ? formatTk(advanceAmount(orderable.price, site.advancePercent)) : null;
 const orderHref = `/order/?kit=${kit.slug}`;
 const wa = whatsappLink(`আসসালামু আলাইকুম, ${kit.nameBn} (${kit.code}) সম্পর্কে জানতে চাই।`);
 const payments = paymentLabelsBn().join(', ');
@@ -72,6 +74,7 @@ const faqs = [
               <p class="price-box__advance">
                 অগ্রিম {advancePct}%: <strong>{advance}</strong>
               </p>
+              {orderable?.testPrice && <TestPriceNote />}
             </>
           ) : (
             <p class="price-box__price price-box__price--tbd">দাম শীঘ্রই জানানো হবে</p>

@@ -68,7 +68,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
   const order = {
     createdAt: new Date().toISOString(),
-    source: 'website',
+    source: kit.testPrice ? 'website-test' : 'website', // test-price orders are easy to spot and delete
     name: input.name,
     phone: input.phone,
     district: input.district,

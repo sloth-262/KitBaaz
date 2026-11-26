@@ -1,7 +1,8 @@
 ---
 import Base from '../layouts/Base.astro';
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
-import { orderableProducts, DEV_TEST_PRICE } from '../data/products';
+import TestPriceNote from '../components/TestPriceNote.astro';
+import { orderableProducts } from '../data/products';
 import { site, whatsappLink } from '../data/site';
 import { MAX_QUANTITY, PAYMENT_METHODS } from '../lib/order';
 import { toBnDigits, formatTk } from '../lib/bn';
@@ -36,12 +37,7 @@ const wa = whatsappLink('আসসালামু আলাইকুম, প্�
               পাঠানোর নিয়ম দেখানো হবে। অগ্রিম পাওয়ার পর {days} দিনের মধ্যে ডেলিভারি।
             </p>
 
-            {kits.some((k) => k.testPrice) && (
-              <p class="dev-note">
-                DEV ONLY: kits without a price use a test price of Tk {DEV_TEST_PRICE}. This never appears on the
-                live site.
-              </p>
-            )}
+            {kits.some((k) => k.testPrice) && <TestPriceNote />}
 
             <div class="alert" id="form-alert" role="alert" hidden></div>
 
@@ -343,13 +339,5 @@ const wa = whatsappLink('আসসালামু আলাইকুম, প্�
   .summary__row--advance {
     font-size: 1.1rem;
     color: var(--brand-dark);
-  }
-  .dev-note {
-    background: #fff8c5;
-    border: 1px dashed #c9a400;
-    border-radius: 10px;
-    padding: 8px 12px;
-    font-size: 0.85rem;
-    font-family: system-ui, sans-serif;
   }
 </style>

@@ -74,7 +74,7 @@ ORDER_WEBHOOK_SECRET=<the secret from step 2>
 
 Restart `npm run dev`, open http://localhost:4321/order and place an order.
 It should appear in the sheet within a few seconds, with an alert email.
-(Locally, kits without a price use a Tk 4,500 test price.)
+(Kits without a price use a Tk 4,500 test price, locally and on the live site while `testPrices` is on in `src/data/site.ts`. Those orders show `website-test` in Source.)
 
 **On Cloudflare** (the live site):
 

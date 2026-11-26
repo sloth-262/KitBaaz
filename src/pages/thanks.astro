@@ -1,7 +1,8 @@
 ---
 import Base from '../layouts/Base.astro';
 import { site, whatsappLink } from '../data/site';
-import { activeProducts } from '../data/products';
+import TestPriceNote from '../components/TestPriceNote.astro';
+import { activeProducts, orderableProducts } from '../data/products';
 import { toBnDigits } from '../lib/bn';
 
 const advancePct = toBnDigits(site.advancePercent);
@@ -33,6 +34,7 @@ const pageData = JSON.stringify({
 
       <div class="card step">
         <h2>১. {advancePct}% অগ্রিম পাঠান</h2>
+        {orderableProducts().some((k) => k.testPrice) && <TestPriceNote />}
         <div id="amounts" hidden>
           <div class="row"><span>মোট দাম</span><strong id="amt-total"></strong></div>
           <div class="row row--big"><span>এখন অগ্রিম ({advancePct}%)</span><strong id="amt-advance"></strong></div>

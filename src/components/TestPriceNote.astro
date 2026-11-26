@@ -1,0 +1,21 @@
+---
+// Shown wherever a kit uses the test price (site.testPrices in src/data/site.ts).
+import { TEST_PRICE } from '../data/products';
+import { formatTk } from '../lib/bn';
+---
+
+<p class="test-note" role="note">
+  <strong>পরীক্ষামূলক দাম:</strong> আসল দাম এখনো ঘোষণা হয়নি। {formatTk(TEST_PRICE)} শুধু ওয়েবসাইট পরীক্ষার
+  জন্য। দয়া করে এখন কোনো টাকা পাঠাবেন না।
+</p>
+
+<style>
+  .test-note {
+    background: #fff8c5;
+    border: 1px dashed #c9a400;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.92rem;
+    margin: 0 0 12px;
+  }
+</style>

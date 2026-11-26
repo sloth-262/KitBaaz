@@ -25,8 +25,13 @@ export const site = {
   },
 
   // Shows the pre-order buttons on the landing and product pages.
-  // Turn on once at least one kit has a price.
-  preorderOpen: false,
+  preorderOpen: true,
+
+  // While true, kits without a price use the test price (products.ts, TEST_PRICE)
+  // on the live site too, with a "test price, don't send money" notice, and their
+  // orders are marked "website-test" in the Sheet's Source column.
+  // TODO: set to false once Shakil confirms the real prices.
+  testPrices: true,
 };
 
 export const paymentLabelsBn = () => Object.values(site.payments).map((p) => p.labelBn);

@@ -1,6 +1,8 @@
 // Kit catalogue. For now this is a local file; later it is read from the
 // "Products" tab of the KitBaaz Google Sheet when the site is built.
 
+import { site } from './site';
+
 export type Product = {
   slug: string; // used in the page address: /kits/<slug>
   code: string; // supplier model code
@@ -38,9 +40,12 @@ export const products: Product[] = [
 
 export const activeProducts = () => products.filter((p) => p.active);
 
-// During local development only (npm run dev), kits without a price use this
-// test price so the order form can be tried end to end. Never used in a build.
-export const DEV_TEST_PRICE = 4500;
+// Kits without a price use this test price so the order form can be tried end
+// to end: always during local development (npm run dev), and on the live site
+// while site.testPrices is true.
+export const TEST_PRICE = 4500;
+
+const testPricesOn = () => import.meta.env.DEV || site.testPrices;
 
 export type OrderableProduct = Product & { price: number; testPrice: boolean };
 
@@ -48,7 +53,7 @@ export type OrderableProduct = Product & { price: number; testPrice: boolean };
 export const orderableProducts = (): OrderableProduct[] =>
   activeProducts().flatMap((p): OrderableProduct[] => {
     if (p.price !== null) return [{ ...p, price: p.price, testPrice: false }];
-    if (import.meta.env.DEV) return [{ ...p, price: DEV_TEST_PRICE, testPrice: true }];
+    if (testPricesOn()) return [{ ...p, price: TEST_PRICE, testPrice: true }];
     return [];
   });
 

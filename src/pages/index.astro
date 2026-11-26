@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Placeholder from '../components/Placeholder.astro';
 import { site, whatsappLink, messengerLink } from '../data/site';
-import { activeProducts } from '../data/products';
+import { activeProducts, findOrderable } from '../data/products';
 import { toBnDigits, formatTk } from '../lib/bn';
 
 const advance = toBnDigits(site.advancePercent);
@@ -63,7 +63,11 @@ const trust = [
               </p>
               <p>{kit.summaryBn}</p>
               <p class="kit__price">
-                {kit.price ? formatTk(kit.price) : 'দাম শীঘ্রই জানানো হবে'}
+                {kit.price
+                  ? formatTk(kit.price)
+                  : findOrderable(kit.slug)
+                    ? `${formatTk(findOrderable(kit.slug)!.price)} (পরীক্ষামূলক দাম)`
+                    : 'দাম শীঘ্রই জানানো হবে'}
               </p>
               <a class="btn btn--primary" href={`/kits/${kit.slug}`}>
                 বিস্তারিত দেখুন
