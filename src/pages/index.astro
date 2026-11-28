@@ -1,13 +1,15 @@
 ---
 import Base from '../layouts/Base.astro';
 import Placeholder from '../components/Placeholder.astro';
+import KitImage from '../components/KitImage.astro';
 import { site, whatsappLink, messengerLink } from '../data/site';
-import { activeProducts, findOrderable } from '../data/products';
+import { activeProducts, findOrderable, productsInSeries, SERIES } from '../data/products';
 import { toBnDigits, formatTk } from '../lib/bn';
 
 const advance = toBnDigits(site.advancePercent);
 const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
 const kits = activeProducts();
+const groups = SERIES.map((s) => ({ ...s, kits: productsInSeries(s.id) })).filter((g) => g.kits.length > 0);
 const wa = whatsappLink('আসসালামু আলাইকুম, KitBaaz-এর কিট সম্পর্কে জানতে চাই।');
 const messenger = messengerLink();
 
@@ -15,7 +17,7 @@ const steps = [
   { title: 'কিট বেছে নিন', text: 'পছন্দের কিট বেছে নিয়ে প্রি-অর্ডার ফর্মটি পূরণ করুন।' },
   {
     title: `${advance}% অগ্রিম দিন`,
-    text: 'বিকাশ, নগদ বা ব্যাংকের মাধ্যমে অগ্রিম পাঠান। আমরা ফোনে নিশ্চিত করব।',
+    text: 'বিকাশ, নগদ, রকেট বা ব্যাংকের মাধ্যমে অগ্রিম পাঠান। আমরা ফোনে নিশ্চিত করব।',
   },
   { title: 'বাসায় কিট পৌঁছাবে', text: `অর্ডার নিশ্চিত হওয়ার ${days} দিনের মধ্যে কিট আপনার ঠিকানায়।` },
 ];
@@ -50,32 +52,48 @@ const trust = [
     <div class="container">
       <h2>আমাদের কিট</h2>
       <p class="section-lead">
-        প্রতিটি কিট প্রি-অর্ডারে পাওয়া যায়। ডেলিভারি {days} দিনের মধ্যে।
+        সব কিট প্রি-অর্ডারে আনা হয়। ডেলিভারি {days} দিনের মধ্যে। মোট {toBnDigits(kits.length)}টি কিট ও
+        এক্সপ্যানশন প্যাক।
       </p>
-      <div class="grid grid--3">
-        {
-          kits.map((kit) => (
-            <article class="card kit">
-              <Placeholder />
-              <h3>{kit.nameBn}</h3>
-              <p class="kit__meta">
-                {kit.code} · বয়স {toBnDigits(kit.ageMin)}+
-              </p>
-              <p>{kit.summaryBn}</p>
-              <p class="kit__price">
-                {kit.price
-                  ? formatTk(kit.price)
-                  : findOrderable(kit.slug)
-                    ? `${formatTk(findOrderable(kit.slug)!.price)} (পরীক্ষামূলক দাম)`
-                    : 'দাম শীঘ্রই জানানো হবে'}
-              </p>
-              <a class="btn btn--primary" href={`/kits/${kit.slug}`}>
-                বিস্তারিত দেখুন
-              </a>
-            </article>
-          ))
-        }
-      </div>
+      <nav class="series-nav" aria-label="কিটের সিরিজ">
+        {groups.map((g) => <a href={`#${g.id}`}>{g.nameBn}</a>)}
+      </nav>
+
+      {
+        groups.map((g) => (
+          <div class="series" id={g.id}>
+            <h3 class="series__title">{g.nameBn}</h3>
+            <p class="series__lead">{g.leadBn}</p>
+            <div class="grid grid--3">
+              {g.kits.map((kit) => {
+                const orderable = findOrderable(kit.slug);
+                return (
+                  <article class="card kit">
+                    <KitImage kit={kit} />
+                    {kit.kind !== 'kit' && (
+                      <p class="kit__tag">{kit.kind === 'expansion' ? 'এক্সপ্যানশন প্যাক' : 'অ্যাকসেসরি'}</p>
+                    )}
+                    <h4>{kit.nameBn}</h4>
+                    <p class="kit__meta">
+                      {kit.code}
+                      {kit.ageMin !== null && ` · বয়স ${toBnDigits(kit.ageMin)}+`}
+                    </p>
+                    <p>{kit.summaryBn}</p>
+                    <p class="kit__price">
+                      {orderable
+                        ? `${formatTk(orderable.price)}${orderable.testPrice ? ' (পরীক্ষামূলক দাম)' : ''}`
+                        : 'দাম শীঘ্রই জানানো হবে'}
+                    </p>
+                    <a class="btn btn--primary" href={`/kits/${kit.slug}`}>
+                      বিস্তারিত দেখুন
+                    </a>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ))
+      }
     </div>
   </section>
 
@@ -175,8 +193,53 @@ const trust = [
     flex-wrap: wrap;
     gap: 12px;
   }
-  .kit h3 {
-    margin-top: 16px;
+  .series-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 8px;
+  }
+  .series-nav a {
+    padding: 6px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--brand-dark);
+    font-size: 0.92rem;
+    text-decoration: none;
+  }
+  .series {
+    padding-top: 28px;
+    scroll-margin-top: 16px;
+  }
+  .series__title {
+    font-size: 1.3rem;
+    margin-bottom: 0.2em;
+  }
+  .series__lead {
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+  .kit {
+    display: flex;
+    flex-direction: column;
+  }
+  .kit h4 {
+    margin: 14px 0 4px;
+    font-size: 1.1rem;
+  }
+  .kit .btn {
+    margin-top: auto;
+  }
+  .kit__tag {
+    align-self: flex-start;
+    margin: 12px 0 0;
+    padding: 1px 10px;
+    border-radius: 999px;
+    background: #fff3e6;
+    color: var(--accent-dark);
+    font-size: 0.8rem;
+    font-weight: 600;
   }
   .kit__meta {
     color: var(--ink-soft);

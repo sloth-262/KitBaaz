@@ -2,7 +2,7 @@
 // One page per kit, built from src/data/products.ts.
 import type { GetStaticPaths } from 'astro';
 import Base from '../../layouts/Base.astro';
-import Placeholder from '../../components/Placeholder.astro';
+import KitImage from '../../components/KitImage.astro';
 import TestPriceNote from '../../components/TestPriceNote.astro';
 import { activeProducts, advanceAmount, findOrderable, type Product } from '../../data/products';
 import { site, whatsappLink, paymentLabelsBn } from '../../data/site';
@@ -23,6 +23,8 @@ const price = orderable ? formatTk(orderable.price) : null;
 const advance = orderable ? formatTk(advanceAmount(orderable.price, site.advancePercent)) : null;
 const orderHref = `/order/?kit=${kit.slug}`;
 const wa = whatsappLink(`আসসালামু আলাইকুম, ${kit.nameBn} (${kit.code}) সম্পর্কে জানতে চাই।`);
+const priceWa = whatsappLink(`আসসালামু আলাইকুম, ${kit.nameBn} (${kit.code})-এর দাম জানতে চাই।`);
+const canOrder = site.preorderOpen && Boolean(orderable);
 const payments = paymentLabelsBn().join(', ');
 
 const faqs = [
@@ -38,10 +40,14 @@ const faqs = [
     q: 'অগ্রিম কীভাবে দেব?',
     a: `${payments}-এর মাধ্যমে দিতে পারবেন। অর্ডার ফর্ম জমা দেওয়ার পর পেমেন্টের বিস্তারিত দেখানো হবে।`,
   },
-  {
-    q: 'আমার সন্তানের বয়স কম হলে কি চলবে?',
-    a: `কিটটি ${toBnDigits(kit.ageMin)} বছর ও তার বেশি বয়সীদের জন্য। ছোটরা বড়দের সাথে বসে বানালে আরও ভালো শিখবে।`,
-  },
+  ...(kit.ageMin !== null
+    ? [
+        {
+          q: 'আমার সন্তানের বয়স কম হলে কি চলবে?',
+          a: `কিটটি ${toBnDigits(kit.ageMin)} বছর ও তার বেশি বয়সীদের জন্য। ছোটরা বড়দের সাথে বসে বানালে আরও ভালো শিখবে।`,
+        },
+      ]
+    : []),
 ];
 ---
 
@@ -55,16 +61,20 @@ const faqs = [
 
   <section class="container product">
     <div class="product__media">
-      <Placeholder label="প্রতীকী ছবি" />
+      <KitImage kit={kit} eager />
     </div>
 
     <div class="product__info">
-      <p class="product__badge">প্রি-অর্ডার</p>
+      <p class="product__badge">
+        {kit.kind === 'expansion' ? 'এক্সপ্যানশন প্যাক' : kit.kind === 'accessory' ? 'অ্যাকসেসরি' : 'প্রি-অর্ডার'}
+      </p>
       <h1>{kit.nameBn}</h1>
       <p class="product__meta">
-        {kit.name} · {kit.code} · বয়স {toBnDigits(kit.ageMin)}+
+        {kit.name} · {kit.code}
+        {kit.ageMin !== null && ` · বয়স ${toBnDigits(kit.ageMin)}+`}
       </p>
       <p>{kit.summaryBn}</p>
+      {kit.requiresBn && <p class="requires"><strong>আরও লাগবে:</strong> {kit.requiresBn}</p>}
 
       <div class="price-box">
         {
@@ -87,13 +97,15 @@ const faqs = [
         </ul>
         <div class="product__actions">
           {
-            site.preorderOpen ? (
+            canOrder ? (
               <a class="btn btn--primary" href={orderHref}>প্রি-অর্ডার করুন</a>
+            ) : site.preorderOpen && priceWa ? (
+              <a class="btn btn--primary" href={priceWa}>দাম জানতে WhatsApp করুন</a>
             ) : (
               <span class="btn btn--primary" aria-disabled="true">প্রি-অর্ডার শীঘ্রই শুরু</span>
             )
           }
-          {wa && <a class="btn btn--outline" href={wa}>WhatsApp-এ প্রশ্ন করুন</a>}
+          {wa && (canOrder || !priceWa) && <a class="btn btn--outline" href={wa}>WhatsApp-এ প্রশ্ন করুন</a>}
         </div>
       </div>
     </div>
@@ -156,8 +168,10 @@ const faqs = [
     <div class="container sticky-cta__inner">
       <span class="sticky-cta__price">{price ?? 'দাম শীঘ্রই'}</span>
       {
-        site.preorderOpen ? (
+        canOrder ? (
           <a class="btn btn--primary" href={orderHref}>প্রি-অর্ডার</a>
+        ) : site.preorderOpen && priceWa ? (
+          <a class="btn btn--primary" href={priceWa}>দাম জানুন</a>
         ) : (
           <span class="btn btn--primary" aria-disabled="true">শীঘ্রই</span>
         )
@@ -201,6 +215,12 @@ const faqs = [
   .product__meta {
     color: var(--ink-soft);
     font-size: 0.92rem;
+  }
+  .requires {
+    background: #fff3e6;
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
   }
   .price-box {
     background: var(--bg-soft);

@@ -1,0 +1,41 @@
+---
+// A kit's photo, or the placeholder until one is added. To add a photo (only
+// once Shakil has written permission from ACEBOTT): put it in public/kits/
+// and set `image: '/kits/<slug>.jpg'` on the kit in src/data/products.ts.
+import Placeholder from './Placeholder.astro';
+import type { Product } from '../data/products';
+
+interface Props {
+  kit: Product;
+  eager?: boolean; // true for the main photo at the top of a page
+}
+const { kit, eager = false } = Astro.props;
+---
+
+{
+  kit.image ? (
+    <img
+      class="kit-image"
+      src={kit.image}
+      alt={kit.nameBn}
+      width="800"
+      height="533"
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+    />
+  ) : (
+    <Placeholder label={eager ? 'প্রতীকী ছবি' : 'ছবি শীঘ্রই'} />
+  )
+}
+
+<style>
+  .kit-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 2;
+    object-fit: contain;
+    background: #fff;
+    border-radius: var(--radius);
+  }
+</style>
