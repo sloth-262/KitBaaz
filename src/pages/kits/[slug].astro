@@ -121,6 +121,18 @@ const faqs = [
           {kit.learnBn.map((item) => <li>{item}</li>)}
         </ul>
       </div>
+      {
+        kit.specsBn.length > 0 && (
+          <div class="card">
+            <h2>কিটের তথ্য</h2>
+            <ul class="list">
+              {kit.specsBn.map((item) => (
+                <li>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )
+      }
     </div>
   </section>
 

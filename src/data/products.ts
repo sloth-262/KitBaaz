@@ -13,6 +13,7 @@ export type Product = {
   price: number | null; // in Tk; null = not announced yet
   inTheBoxBn: string[]; // empty = not confirmed yet
   learnBn: string[]; // what children learn with this kit
+  specsBn: string[]; // board, coding, tutorial facts; empty = section hidden
   active: boolean; // false hides the kit from the site
 };
 
@@ -22,17 +23,28 @@ export const products: Product[] = [
     code: 'QE001',
     name: 'ACEBOTT Smart Home Kit',
     nameBn: 'স্মার্ট হোম কিট',
+    // Text below is based on the ACEBOTT catalog V2.0 and product data sheet.
     summaryBn:
-      'নিজের হাতে একটি স্মার্ট বাড়ির মডেল বানিয়ে সেন্সর, ইলেকট্রনিক্স আর কোডিংয়ের প্রথম পাঠ।',
+      'কাঠের একটি স্মার্ট বাড়ি নিজের হাতে বানিয়ে রং করা, তারপর কোড লিখে সেটিকে ভয়েস কমান্ড, মোবাইল অ্যাপ আর ওয়েব পেজ দিয়ে চালানো।',
+    // The catalog says 10+, the product sheet says 8+. Chosen: 8+.
     ageMin: 8,
     price: null, // TODO(Shakil): confirm price
     inTheBoxBn: [], // TODO(Shakil): confirm box contents
     // TODO(Shakil): confirm these match the kit
     learnBn: [
-      'ইলেকট্রনিক সার্কিট কীভাবে কাজ করে',
-      'সেন্সর দিয়ে আলো, তাপ বা নড়াচড়া বোঝা',
+      'ভয়েস কমান্ড চিনে বাড়ির জিনিস চালানো (স্পিচ রিকগনিশন)',
+      'রঙিন RGB আলো আর লেজার প্রজেকশন নিয়ন্ত্রণ',
+      'Wi-Fi দিয়ে মোবাইল অ্যাপ ও ওয়েব পেজ থেকে বাড়ি চালানো (IoT)',
+      'ব্লক জুড়ে কোডিং শুরু, পরে Arduino ও Python',
       'ধাপে ধাপে মডেল বানানো ও সমস্যা সমাধান',
-      'কোডিংয়ের প্রাথমিক ধারণা',
+    ],
+    // TODO(Shakil): confirm
+    specsBn: [
+      'কন্ট্রোলার বোর্ড: ESP32 (Wi-Fi + Bluetooth)',
+      'কোডিং: ACECode (ব্লক কোডিং), Arduino, Python',
+      'টিউটোরিয়াল: গল্পভিত্তিক ১৬টি অ্যাডভেঞ্চার মিশন, সাথে অ্যাপ',
+      'Easy-Plug মডিউল: প্লাগ করেই সহজে লাগানো যায়',
+      'নিজের মতো রং করার জন্য কাঠের বাড়ি',
     ],
     active: true,
   },
