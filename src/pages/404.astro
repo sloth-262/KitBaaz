@@ -1,5 +1,9 @@
 ---
 import Base from '../layouts/Base.astro';
+
+// Rendered on request, so kit pages (also rendered on request) can show it for an unknown kit.
+export const prerender = false;
+Astro.response.status = 404;
 ---
 
 <Base title="পাতাটি পাওয়া যায়নি">

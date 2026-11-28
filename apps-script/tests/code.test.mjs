@@ -54,7 +54,7 @@ const isDate = (v) => Object.prototype.toString.call(v) === '[object Date]';
 
 test('setup creates the tabs, headers and a website secret', () => {
   const { ss, secret, orders, run } = setUp();
-  assert.deepEqual(ss.getSheets().map((s) => s.name).sort(), ['Orders', 'Settings', 'Summary']);
+  assert.deepEqual(ss.getSheets().map((s) => s.name).sort(), ['Orders', 'Prices', 'Settings', 'Summary']);
   assert.equal(JSON.stringify(orders.data[0]), JSON.stringify(run('COLUMNS').map((c) => c[1])));
   assert.match(secret, /^[0-9a-f]{64}$/);
   assert.equal(ss.getSheetByName('Settings').get(3, 2), 'owner@example.com'); // Alert email defaults to the owner
@@ -416,4 +416,52 @@ test('summary counts payments waiting to be checked', () => {
   const { ss } = setUp();
   const f = [...ss.getSheetByName('Summary').formulas.values()].join('\n');
   assert.match(f, /COUNTIFS\(Orders!S2:S,"<>",Orders!K2:K,"Pre-order"\)/);
+});
+
+/* ---------------- prices ---------------- */
+
+const siteData = (env, kits) => post(env, { secret: env.secret, action: 'siteData', kits });
+const KITS = [
+  { code: 'QE001', name: 'ACEBOTT Smart Home Kit' },
+  { code: 'QD001', name: 'ACEBOTT ESP32 Smart Car Starter Kit' },
+];
+
+test('the website adds a Prices row for each kit, once', () => {
+  const env = setUp();
+  const res = siteData(env, KITS);
+  assert.equal(res.ok, true);
+  assert.deepEqual({ ...res.prices }, {});
+  const prices = env.ss.getSheetByName('Prices');
+  assert.deepEqual(prices.data[0], ['Code', 'Kit', 'Price (Tk)', 'Notes']);
+  assert.deepEqual(prices.data.slice(1).map((r) => r[0]), ['QE001', 'QD001']);
+  siteData(env, KITS);
+  assert.equal(prices.getLastRow(), 3); // not added again
+  assert.ok(res.payments.bkash); // payment details come in the same call
+});
+
+test('prices typed in the Prices tab reach the website', () => {
+  const env = setUp();
+  siteData(env, KITS);
+  const prices = env.ss.getSheetByName('Prices');
+  prices.set(2, 3, 5200); // QE001, a number cell
+  prices.set(3, 3, '৯,৫০০'); // QD001 typed as Bangla text
+  assert.deepEqual({ ...siteData(env, KITS).prices }, { QE001: 5200, QD001: 9500 });
+});
+
+test('unreadable or zero prices are left out and reported by Check prices', () => {
+  const env = setUp();
+  siteData(env, KITS);
+  const prices = env.ss.getSheetByName('Prices');
+  prices.set(2, 3, 'ask');
+  prices.set(3, 3, 0);
+  assert.deepEqual({ ...siteData(env, KITS).prices }, {});
+  const report = env.run('pricesReport_()');
+  assert.match(report, /QE001 \(row 2\): "ask" is not a number/);
+  assert.match(report, /On the website \(0\)/);
+});
+
+test('bad kit codes from the website are not added', () => {
+  const env = setUp();
+  siteData(env, [{ code: '=HYPERLINK("x")', name: 'x' }, { code: 'QE001', name: 'ok' }]);
+  assert.deepEqual(env.ss.getSheetByName('Prices').data.slice(1).map((r) => r[0]), ['QE001']);
 });

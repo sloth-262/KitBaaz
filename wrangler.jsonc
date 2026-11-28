@@ -8,6 +8,9 @@
 		"directory": "./dist",
 		"binding": "ASSETS"
 	},
+	// Last copy of the prices and payment details read from the Google Sheet,
+	// so pages load fast and keep working if the Sheet is slow. Created on deploy.
+	"kv_namespaces": [{ "binding": "SITE_CACHE" }],
 	"observability": {
 		"enabled": true
 	}

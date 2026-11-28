@@ -3,7 +3,12 @@ import Base from '../layouts/Base.astro';
 import { site, whatsappLink } from '../data/site';
 import TestPriceNote from '../components/TestPriceNote.astro';
 import { activeProducts, orderableProducts } from '../data/products';
+import { getPrices } from '../lib/site-data';
 import { toBnDigits } from '../lib/bn';
+
+// Rendered on each visit, so the test-price notice follows the Sheet's prices.
+export const prerender = false;
+const prices = await getPrices();
 
 const advancePct = toBnDigits(site.advancePercent);
 const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
@@ -34,7 +39,7 @@ const pageData = JSON.stringify({
 
       <div class="card step">
         <h2>১. {advancePct}% অগ্রিম পাঠান</h2>
-        {orderableProducts().some((k) => k.testPrice) && <TestPriceNote />}
+        {orderableProducts(prices).some((k) => k.testPrice) && <TestPriceNote />}
         <div id="amounts" hidden>
           <div class="row"><span>মোট দাম</span><strong id="amt-total"></strong></div>
           <div class="row row--big"><span>এখন অগ্রিম ({advancePct}%)</span><strong id="amt-advance"></strong></div>
@@ -120,7 +125,7 @@ const pageData = JSON.stringify({
   import { formatTk, toBnDigits } from '../lib/bn';
   import { validatePaymentClaim, type ClaimErrors } from '../lib/order';
 
-  import type { PaymentInfo } from './api/payment-info';
+  import type { PaymentInfo } from '../lib/site-data';
 
   type Payment = { labelBn: string; howBn: string };
   const root = document.querySelector<HTMLElement>('#thanks')!;

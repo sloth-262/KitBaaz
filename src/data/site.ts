@@ -18,7 +18,8 @@ export const site = {
 
   // Ways to pay the advance. The numbers and bank details are NOT here: they
   // are kept only in the Sheet's Settings tab, and the thank-you page reads
-  // them from there (/api/payment-info).
+  // them from there (/api/payment-info, src/lib/site-data.ts). Kit prices work
+  // the same way, from the Sheet's Prices tab.
   payments: {
     bkash: { labelBn: 'বিকাশ', howBn: 'Send Money' },
     nagad: { labelBn: 'নগদ', howBn: 'Send Money' },

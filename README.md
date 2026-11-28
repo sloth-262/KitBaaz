@@ -20,7 +20,8 @@ Built with [Astro](https://astro.build) and deployed to Cloudflare Workers.
 | What | File |
 |---|---|
 | Contact details, advance %, delivery days | `src/data/site.ts` |
-| Kits, prices, box contents | `src/data/products.ts` |
+| Kits, box contents | `src/data/products.ts` |
+| Prices, payment details | Google Sheet (Prices and Settings tabs), read by `src/lib/site-data.ts` |
 | Landing page | `src/pages/index.astro` |
 | Kit pages | `src/pages/kits/[slug].astro` |
 | Pre-order form | `src/pages/order.astro` |

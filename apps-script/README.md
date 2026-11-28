@@ -102,6 +102,17 @@ npx wrangler secret put ORDER_WEBHOOK_SECRET
 3. In the sheet: **KitBaaz > Set up sheet**. This adds any new columns at the end and
    refreshes formats and the Summary tab. Existing orders are not touched.
 
+## Changing kit prices
+
+Prices live in the **Prices** tab, one row per kit. The website adds a row for every kit it
+sells the first time it reads the Sheet, so you only fill in **Price (Tk)**.
+
+- Type the full price in taka, e.g. `4500`. The website works out the advance.
+- Empty price = the kit shows "দাম শীঘ্রই জানানো হবে" and a WhatsApp button instead of pre-order.
+- Changes show on the website within about 5 minutes.
+- **KitBaaz > Check prices** lists which kits have a price and any cell it cannot read.
+- Do not change the codes in column A.
+
 ## Confirming advance payments
 
 The website never confirms a payment by itself. You do, in the bKash / Nagad / Rocket app or

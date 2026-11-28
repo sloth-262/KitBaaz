@@ -7,6 +7,7 @@
 import type { APIRoute } from 'astro';
 import { TURNSTILE_SECRET_KEY } from 'astro:env/server';
 import { findOrderable, orderableProducts } from '../../data/products';
+import { getPrices } from '../../lib/site-data';
 import { site } from '../../data/site';
 import { validateOrder, orderTotals, type FieldErrors } from '../../lib/order';
 import { claimKey } from '../../lib/claim-key';
@@ -60,10 +61,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     if (!passed) return fail(400, 'spam');
   }
 
-  const { input, errors } = validateOrder(raw, orderableProducts().map((p) => p.slug));
+  const prices = await getPrices(); // from the Sheet's Prices tab, never from the form
+  const { input, errors } = validateOrder(raw, orderableProducts(prices).map((p) => p.slug));
   if (Object.keys(errors).length > 0) return fail(422, 'invalid', errors, input.kit);
 
-  const kit = findOrderable(input.kit)!;
+  const kit = findOrderable(prices, input.kit)!;
   const totals = orderTotals(kit.price, input.quantity, site.advancePercent);
 
   const order = {

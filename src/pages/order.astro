@@ -6,8 +6,11 @@ import { orderableProducts } from '../data/products';
 import { site, whatsappLink } from '../data/site';
 import { MAX_QUANTITY, PAYMENT_METHODS } from '../lib/order';
 import { toBnDigits, formatTk } from '../lib/bn';
+import { getPrices } from '../lib/site-data';
 
-const kits = orderableProducts();
+// Rendered on each visit, so the kit list and prices follow the Sheet's Prices tab.
+export const prerender = false;
+const kits = orderableProducts(await getPrices());
 const first = kits[0];
 const advancePct = toBnDigits(site.advancePercent);
 const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;

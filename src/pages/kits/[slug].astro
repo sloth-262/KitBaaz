@@ -1,24 +1,22 @@
 ---
-// One page per kit, built from src/data/products.ts.
-import type { GetStaticPaths } from 'astro';
+// One page per kit, from src/data/products.ts. Rendered on each visit so the
+// price follows the Sheet's Prices tab.
 import Base from '../../layouts/Base.astro';
 import KitImage from '../../components/KitImage.astro';
 import TestPriceNote from '../../components/TestPriceNote.astro';
-import { activeProducts, advanceAmount, findOrderable, type Product } from '../../data/products';
+import { activeProducts, advanceAmount, findOrderable } from '../../data/products';
 import { site, whatsappLink, paymentLabelsBn } from '../../data/site';
+import { getPrices } from '../../lib/site-data';
 import { toBnDigits, formatTk } from '../../lib/bn';
 
-export const getStaticPaths = (() =>
-  activeProducts().map((kit) => ({ params: { slug: kit.slug }, props: { kit } }))) satisfies GetStaticPaths;
+export const prerender = false;
 
-interface Props {
-  kit: Product;
-}
+const kit = activeProducts().find((k) => k.slug === Astro.params.slug);
+if (!kit) return Astro.rewrite('/404');
 
-const { kit } = Astro.props;
 const advancePct = toBnDigits(site.advancePercent);
 const days = `${toBnDigits(site.deliveryDays.min)}–${toBnDigits(site.deliveryDays.max)}`;
-const orderable = findOrderable(kit.slug); // includes the test price while site.testPrices is on
+const orderable = findOrderable(await getPrices(), kit.slug); // includes the test price while site.testPrices is on
 const price = orderable ? formatTk(orderable.price) : null;
 const advance = orderable ? formatTk(advanceAmount(orderable.price, site.advancePercent)) : null;
 const orderHref = `/order/?kit=${kit.slug}`;

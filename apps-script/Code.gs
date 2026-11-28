@@ -85,7 +85,11 @@ const SETTINGS = [
   ['Facebook page', '', 'Link used in review request messages'],
 ];
 
-const SHEETS = { orders: 'Orders', summary: 'Summary', settings: 'Settings' };
+const SHEETS = { orders: 'Orders', summary: 'Summary', settings: 'Settings', prices: 'Prices' };
+
+// Prices tab: one row per kit. The website adds a row for every kit it sells,
+// so Shakil only types the price. Empty price = "price coming soon" on the site.
+const PRICE_HEADERS = ['Code', 'Kit', 'Price (Tk)', 'Notes'];
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
 
 /* ------------------------------------------------------------------ */
@@ -105,6 +109,10 @@ function doPost(e) {
 
   if (body.action === 'payment') return handlePaymentClaim_(body.payment);
   if (body.action === 'paymentInfo') return json_({ ok: true, payments: paymentInfo_(readSettings_()) });
+  if (body.action === 'siteData') {
+    // Everything the website reads from the Sheet, in one call: payment details and kit prices.
+    return json_({ ok: true, payments: paymentInfo_(readSettings_()), prices: readPrices_(body.kits) });
+  }
 
   const problem = checkOrder_(body.order);
   if (problem) return json_({ ok: false, error: problem });
@@ -455,6 +463,78 @@ function buildMessage_(o, s) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Kit prices (Prices tab)                                            */
+/* ------------------------------------------------------------------ */
+
+function pricesSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEETS.prices);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.prices);
+    formatPricesSheet_(sheet);
+  }
+  return sheet;
+}
+
+function formatPricesSheet_(sheet) {
+  sheet.getRange(1, 1, 1, PRICE_HEADERS.length).setValues([PRICE_HEADERS]).setFontWeight('bold').setBackground('#e6f4f3');
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidth(1, 80).setColumnWidth(2, 380).setColumnWidth(3, 110).setColumnWidth(4, 260);
+  const rows = Math.max(1, sheet.getMaxRows() - 1);
+  sheet.getRange(2, 1, rows, 1).setNumberFormat('@');
+  sheet.getRange(2, 3, rows, 1).setNumberFormat('#,##0').setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireNumberGreaterThan(0)
+      .setAllowInvalid(false)
+      .setHelpText('The full price in taka, e.g. 4500. Leave empty for "price coming soon".')
+      .build(),
+  );
+}
+
+// "4,500", "৪৫০০", "Tk 4500" -> 4500. Anything else -> null.
+function parsePrice_(v) {
+  if (typeof v === 'number') return v > 0 ? Math.round(v) : null;
+  const en = String(v || '').replace(/[০-৯]/g, (d) => String(BN_DIGITS_.indexOf(d)));
+  const digits = en.replace(/tk|৳|taka|,|\s/gi, '');
+  if (!/^\d+(\.\d+)?$/.test(digits)) return null;
+  const n = Math.round(Number(digits));
+  return n > 0 ? n : null;
+}
+
+// Returns { CODE: price } for kits with a valid price. `kits` ([{code, name}],
+// sent by the website) adds a row for any kit the tab does not list yet.
+function readPrices_(kits) {
+  const sheet = pricesSheet_();
+  const last = sheet.getLastRow();
+  const rows = last >= 2 ? sheet.getRange(2, 1, last - 1, 3).getValues() : [];
+  const known = {};
+  rows.forEach(([code]) => (known[String(code).trim().toUpperCase()] = true));
+
+  const missing = (Array.isArray(kits) ? kits : [])
+    .filter((k) => k && /^[A-Z0-9-]{3,12}$/.test(String(k.code)) && !known[String(k.code)])
+    .map((k) => [String(k.code), str_(k.name).slice(0, 120), '', '']);
+  if (missing.length) {
+    const lock = LockService.getScriptLock();
+    if (lock.tryLock(10000)) {
+      try {
+        const start = sheet.getLastRow() + 1;
+        sheet.getRange(start, 1, missing.length, 1).setNumberFormat('@');
+        sheet.getRange(start, 1, missing.length, PRICE_HEADERS.length).setValues(missing);
+      } finally {
+        lock.releaseLock();
+      }
+    }
+  }
+
+  const prices = {};
+  rows.forEach(([code, , price]) => {
+    const p = parsePrice_(price);
+    if (p) prices[String(code).trim().toUpperCase()] = p;
+  });
+  return prices;
+}
+
 // Payment details for the website's thank-you page. Empty settings are null,
 // and the page then says "we will call you with the number".
 function paymentInfo_(s) {
@@ -589,6 +669,7 @@ function onOpen() {
     .addItem('Send a test order', 'sendTestOrder')
     .addItem('Refresh message for selected rows', 'refreshSelectedMessages')
     .addItem('Check payment details', 'checkPaymentDetails')
+    .addItem('Check prices', 'checkPrices')
     .addSeparator()
     .addItem('Show website secret', 'showWebhookSecret')
     .addToUi();
@@ -679,6 +760,9 @@ function setupSheet() {
       settings.getRange(r, 1, 1, 3).setValues([s]);
     });
   }
+
+  // Prices (the website fills in the kit rows the first time it asks)
+  formatPricesSheet_(pricesSheet_());
 
   // Summary
   const summary = ss.getSheetByName(SHEETS.summary) || ss.insertSheet(SHEETS.summary, 1);
@@ -806,6 +890,33 @@ function paymentDetailsReport_() {
     lines.push(`\n"Bank details" (row ${old + 2}) is no longer used. Move its parts into the Bank rows above, then delete it.`);
   }
   return `Payment details the website will show:\n\n${lines.join('\n')}`;
+}
+
+// Lists which kits have a price the website can use, and which cells it cannot read.
+function checkPrices() {
+  alert_(pricesReport_());
+}
+
+function pricesReport_() {
+  const sheet = pricesSheet_();
+  const last = sheet.getLastRow();
+  if (last < 2) return 'The Prices tab has no kits yet. Open the website once and they will appear within a few minutes.';
+  const rows = sheet.getRange(2, 1, last - 1, 3).getValues();
+  const priced = [];
+  const empty = [];
+  const bad = [];
+  rows.forEach(([code, , price], i) => {
+    if (!code) return;
+    if (price === '' || price == null) empty.push(code);
+    else if (parsePrice_(price)) priced.push(`${code}: Tk ${parsePrice_(price)}`);
+    else bad.push(`${code} (row ${i + 2}): "${price}" is not a number`);
+  });
+  return (
+    `On the website (${priced.length}):\n${priced.join('\n') || 'none yet'}\n\n` +
+    (bad.length ? `Cannot read, fix these (${bad.length}):\n${bad.join('\n')}\n\n` : '') +
+    `"Price coming soon" (${empty.length}): ${empty.join(', ') || 'none'}\n\n` +
+    'Changes show on the website within about 5 minutes.'
+  );
 }
 
 function showWebhookSecret() {

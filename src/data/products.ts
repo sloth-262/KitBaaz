@@ -1,7 +1,7 @@
 // Kit catalogue. Text is based on the ACEBOTT catalog V2.0 (2026-08-15) and the
 // ACEBOTT product data sheet. Supplier prices are deliberately NOT copied here:
-// the taka price is Shakil's decision.
-// TODO(Shakil): confirm prices, box contents and which kits to sell.
+// the taka price is Shakil's decision, and he types it in the Sheet's Prices tab.
+// TODO(Shakil): confirm box contents and which kits to sell.
 
 import { site } from './site';
 
@@ -701,15 +701,21 @@ const testPricesOn = () => import.meta.env.DEV || site.testPrices;
 
 export type OrderableProduct = Product & { price: number; testPrice: boolean };
 
+// Prices from the Sheet's Prices tab (kit code -> Tk); see src/lib/site-data.ts.
+// A price there wins over `price` in this file.
+export type PriceList = Record<string, number>;
+
 // Kits a customer can pre-order right now: active and with a price.
-export const orderableProducts = (): OrderableProduct[] =>
+export const orderableProducts = (prices: PriceList): OrderableProduct[] =>
   activeProducts().flatMap((p): OrderableProduct[] => {
-    if (p.price !== null) return [{ ...p, price: p.price, testPrice: false }];
+    const price = prices[p.code] ?? p.price;
+    if (price !== null) return [{ ...p, price, testPrice: false }];
     if (p.allowTestPrice && testPricesOn()) return [{ ...p, price: TEST_PRICE, testPrice: true }];
     return [];
   });
 
-export const findOrderable = (slug: string) => orderableProducts().find((p) => p.slug === slug);
+export const findOrderable = (prices: PriceList, slug: string) =>
+  orderableProducts(prices).find((p) => p.slug === slug);
 
 export const advanceAmount = (price: number, percent: number) =>
   Math.ceil((price * percent) / 100);

@@ -4,6 +4,11 @@ import Placeholder from '../components/Placeholder.astro';
 import KitImage from '../components/KitImage.astro';
 import { site, whatsappLink, messengerLink } from '../data/site';
 import { activeProducts, findOrderable, productsInSeries, SERIES } from '../data/products';
+import { getPrices } from '../lib/site-data';
+
+// Rendered on each visit, so prices follow the Sheet's Prices tab.
+export const prerender = false;
+const prices = await getPrices();
 import { toBnDigits, formatTk } from '../lib/bn';
 
 const advance = toBnDigits(site.advancePercent);
@@ -66,7 +71,7 @@ const trust = [
             <p class="series__lead">{g.leadBn}</p>
             <div class="grid grid--3">
               {g.kits.map((kit) => {
-                const orderable = findOrderable(kit.slug);
+                const orderable = findOrderable(prices, kit.slug);
                 return (
                   <article class="card kit">
                     <KitImage kit={kit} />
