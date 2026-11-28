@@ -153,6 +153,18 @@ test('bank orders list the bank settings in the message draft', () => {
   assert.doesNotMatch(msg, /শাখা|লিখুন\]/); // empty settings are left out
 });
 
+test('Check payment details explains what is missing or misspelled', () => {
+  const env = setUp();
+  setSetting(env, 'bKash number', '01402329251');
+  const settings = env.ss.getSheetByName('Settings');
+  const rocketRow = settings.data.findIndex((r) => r[0] === 'Rocket number') + 1;
+  settings.set(rocketRow, 1, 'Rocket Number'); // wrong capital N
+  const report = env.run('paymentDetailsReport_()');
+  assert.match(report, /✓ bKash number: 01402329251/);
+  assert.match(report, /– Nagad number: empty/);
+  assert.match(report, /✗ Rocket number: row \d+ is spelled "Rocket Number"/);
+});
+
 test('the website can read the payment details from Settings', () => {
   const env = setUp();
   setSetting(env, 'Rocket number', '014023292511');

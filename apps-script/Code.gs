@@ -588,6 +588,7 @@ function onOpen() {
     .addItem('Set up sheet', 'setupSheet')
     .addItem('Send a test order', 'sendTestOrder')
     .addItem('Refresh message for selected rows', 'refreshSelectedMessages')
+    .addItem('Check payment details', 'checkPaymentDetails')
     .addSeparator()
     .addItem('Show website secret', 'showWebhookSecret')
     .addToUi();
@@ -775,6 +776,36 @@ function refreshSelectedMessages() {
   for (let r = Math.max(2, range.getRow()); r < range.getRow() + range.getNumRows(); r++) {
     refreshMessage_(sheet, cols, r, settings);
   }
+}
+
+// Shows what the website will show for each payment setting, and what to fix.
+function checkPaymentDetails() {
+  alert_(paymentDetailsReport_());
+}
+
+function paymentDetailsReport_() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.settings);
+  if (!sheet || sheet.getLastRow() < 2) return 'There is no Settings tab yet. Run KitBaaz > Set up sheet first.';
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+  const names = Object.keys(WALLET_SETTING).map((k) => WALLET_SETTING[k]).concat(BANK_FIELDS.map(([, n]) => n));
+  const lines = names.map((name) => {
+    const i = rows.findIndex(([k]) => String(k).trim() === name);
+    if (i < 0) {
+      const near = rows.findIndex(([k]) => String(k).trim().toLowerCase() === name.toLowerCase());
+      return near >= 0
+        ? `✗ ${name}: row ${near + 2} is spelled "${rows[near][0]}". Change column A to exactly "${name}".`
+        : `✗ ${name}: no such row. Run KitBaaz > Set up sheet to add it.`;
+    }
+    const value = rows[i][1];
+    return value === '' || value == null
+      ? `– ${name}: empty (row ${i + 2}, column B). The website says "we will call you".`
+      : `✓ ${name}: ${value}`;
+  });
+  const old = rows.findIndex(([k]) => String(k).trim() === 'Bank details');
+  if (old >= 0 && rows[old][1] !== '') {
+    lines.push(`\n"Bank details" (row ${old + 2}) is no longer used. Move its parts into the Bank rows above, then delete it.`);
+  }
+  return `Payment details the website will show:\n\n${lines.join('\n')}`;
 }
 
 function showWebhookSecret() {
