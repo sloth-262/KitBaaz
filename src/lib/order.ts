@@ -3,7 +3,7 @@
 
 import { toBnDigits } from './bn';
 
-export const PAYMENT_METHODS = ['bkash', 'nagad', 'bank'] as const;
+export const PAYMENT_METHODS = ['bkash', 'nagad', 'rocket', 'bank'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const MAX_QUANTITY = 5;
@@ -87,28 +87,48 @@ export function orderTotals(unitPrice: number, quantity: number, advancePercent:
 
 /* ---------------- payment claims (thank-you page) ---------------- */
 
+// For mobile wallets the customer gives the TrxID and the number they paid from.
+// For a bank transfer there is no phone number in the bank's message, so they
+// give the bank's reference number and the sender's name and bank instead.
+// The Sheet re-checks these against the payment method saved on the order.
 export type PaymentClaim = { orderId: string; key: string; trxId: string; paidFrom: string };
 export type ClaimErrors = Partial<Record<'trxId' | 'paidFrom', string>>;
 
 export const ORDER_ID_PATTERN = /^KB-[A-Z0-9-]{4,20}$/;
 
-// bKash and Nagad transaction IDs are 8–10 letters and digits, e.g. 9K3L2M1N0P.
+// bKash, Nagad and Rocket transaction IDs are letters and digits, e.g. 9K3L2M1N0P.
 export const normalizeTrxId = (raw: string) => toEnDigits(raw).replace(/[\s\-]/g, '').toUpperCase();
+
+// Bank references can contain dashes or slashes; keep them, drop spaces.
+const normalizeBankRef = (raw: string) => toEnDigits(raw).replace(/\s/g, '').toUpperCase();
+
+// Rocket account numbers are the mobile number plus one check digit (12 digits).
+function normalizeRocket(raw: string): string | null {
+  const digits = toEnDigits(raw).replace(/[\s\-().]/g, '');
+  return /^01[3-9]\d{9}$/.test(digits) ? digits : normalizePhone(raw);
+}
 
 export function validatePaymentClaim(raw: Record<string, unknown>): { input: PaymentClaim; errors: ClaimErrors } {
   const errors: ClaimErrors = {};
+  const method = clean(raw.method, 10);
+  const base = { orderId: clean(raw.orderId, 30).toUpperCase(), key: clean(raw.key, 40).toLowerCase() };
+
+  if (method === 'bank') {
+    const trxId = normalizeBankRef(clean(raw.trxId, 40));
+    if (!/^[A-Z0-9][A-Z0-9/-]{3,29}$/.test(trxId)) {
+      errors.trxId = 'ব্যাংকের রসিদ বা অ্যাপে থাকা ট্রানজেকশন / রেফারেন্স নম্বর লিখুন।';
+    }
+    const paidFrom = clean(raw.paidFrom, 80);
+    if (paidFrom.length < 3 || /^[=+\-@]/.test(paidFrom)) {
+      errors.paidFrom = 'যার অ্যাকাউন্ট থেকে পাঠিয়েছেন তার নাম আর ব্যাংকের নাম লিখুন।';
+    }
+    return { input: { ...base, trxId, paidFrom }, errors };
+  }
+
   const trxId = normalizeTrxId(clean(raw.trxId, 40));
   if (!/^[A-Z0-9]{6,20}$/.test(trxId)) errors.trxId = 'সঠিক TrxID লিখুন (পেমেন্টের SMS-এ পাবেন)।';
   const paidFromRaw = clean(raw.paidFrom, 30);
-  const paidFrom = normalizePhone(paidFromRaw);
+  const paidFrom = method === 'rocket' ? normalizeRocket(paidFromRaw) : normalizePhone(paidFromRaw);
   if (!paidFrom) errors.paidFrom = 'যে নম্বর থেকে টাকা পাঠিয়েছেন, সেটি লিখুন।';
-  return {
-    input: {
-      orderId: clean(raw.orderId, 30).toUpperCase(),
-      key: clean(raw.key, 40).toLowerCase(),
-      trxId,
-      paidFrom: paidFrom ?? paidFromRaw,
-    },
-    errors,
-  };
+  return { input: { ...base, trxId, paidFrom: paidFrom ?? paidFromRaw }, errors };
 }

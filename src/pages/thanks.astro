@@ -43,12 +43,13 @@ const pageData = JSON.stringify({
         <p id="pay-how">
           অর্ডার নিশ্চিত করতে মোট দামের {advancePct}% অগ্রিম পাঠাতে হবে। পেমেন্টের নম্বর আমরা ফোন করে জানিয়ে দেব।
         </p>
+        <dl class="bank" id="bank-details" hidden></dl>
         <p class="muted">পেমেন্টের রেফারেন্সে আপনার অর্ডার নম্বরটি লিখুন।</p>
       </div>
 
       <div class="card step claim" id="claim" hidden>
-        <h2>টাকা পাঠিয়েছেন? TrxID দিন</h2>
-        <p class="muted">
+        <h2 id="claim-title">টাকা পাঠিয়েছেন? TrxID দিন</h2>
+        <p class="muted" id="claim-intro">
           টাকা পাঠানোর পর SMS-এ একটি TrxID (ট্রানজেকশন আইডি) পাবেন। সেটি এখানে দিন, আমরা মিলিয়ে দেখে অর্ডার
           নিশ্চিত করব।
         </p>
@@ -58,13 +59,14 @@ const pageData = JSON.stringify({
         <form id="claim-form" novalidate>
           <input type="hidden" name="orderId" />
           <input type="hidden" name="key" />
+          <input type="hidden" name="method" />
           <div class="hp" aria-hidden="true">
             <label for="claim-website">Website</label>
             <input id="claim-website" name="website" type="text" tabindex="-1" autocomplete="off" />
           </div>
 
           <div class="field">
-            <label for="trxId">TrxID</label>
+            <label for="trxId" id="trxId-label">TrxID</label>
             <input
               id="trxId"
               name="trxId"
@@ -79,7 +81,7 @@ const pageData = JSON.stringify({
           </div>
 
           <div class="field">
-            <label for="paidFrom">যে নম্বর থেকে টাকা পাঠিয়েছেন</label>
+            <label for="paidFrom" id="paidFrom-label">যে নম্বর থেকে টাকা পাঠিয়েছেন</label>
             <input id="paidFrom" name="paidFrom" type="tel" inputmode="tel" placeholder="01XXXXXXXXX" maxlength="20" />
             <p class="field__error" id="claim-err-paidFrom" hidden></p>
           </div>
@@ -88,7 +90,7 @@ const pageData = JSON.stringify({
         </form>
 
         <div class="claim__done" id="claim-done" hidden>
-          <p><strong>ধন্যবাদ! TrxID পেয়েছি।</strong></p>
+          <p><strong id="claim-done-title">ধন্যবাদ! TrxID পেয়েছি।</strong></p>
           <p>আমরা মিলিয়ে দেখে আপনাকে ফোন বা মেসেজে জানাব। ভুল হলে আবার দিতে পারবেন।</p>
           <button type="button" class="btn btn--outline" id="claim-again">আবার দিন</button>
         </div>
@@ -118,7 +120,9 @@ const pageData = JSON.stringify({
   import { formatTk, toBnDigits } from '../lib/bn';
   import { validatePaymentClaim, type ClaimErrors } from '../lib/order';
 
-  type Payment = { labelBn: string; number: string | null; howBn: string };
+  import type { PaymentInfo } from './api/payment-info';
+
+  type Payment = { labelBn: string; howBn: string };
   const root = document.querySelector<HTMLElement>('#thanks')!;
   const page = JSON.parse(root.dataset.page ?? '{}') as {
     payments: Record<string, Payment>;
@@ -149,16 +153,9 @@ const pageData = JSON.stringify({
       document.querySelector<HTMLElement>('#amounts')!.hidden = false;
     }
 
-    const pay = page.payments[p.get('pay') ?? ''];
-    if (pay?.number) {
-      const amount = advance ? `${formatTk(advance)} ` : '';
-      set(
-        '#pay-how',
-        `${pay.labelBn} নম্বর ${pay.number}-এ ${amount}${pay.howBn ? pay.howBn + ' ' : ''}করুন।`,
-      );
-    } else if (pay) {
-      set('#pay-how', `আপনি ${pay.labelBn} বেছে নিয়েছেন। পেমেন্টের নম্বর আমরা ফোন করে জানিয়ে দেব।`);
-    }
+    const method = p.get('pay') ?? '';
+    const pay = page.payments[method];
+    if (pay) showPaymentDetails(method, pay);
 
     const wa = document.querySelector<HTMLAnchorElement>('#wa-link');
     if (wa && page.whatsapp) {
@@ -166,11 +163,58 @@ const pageData = JSON.stringify({
     }
 
     const key = p.get('k');
-    if (key && /^[0-9a-f]{12}$/.test(key)) setUpClaim(id, key);
+    if (key && /^[0-9a-f]{12}$/.test(key)) setUpClaim(id, key, method);
   }
 
-  // "Paid already? Enter the TrxID" box.
-  function setUpClaim(orderId: string, key: string) {
+  // Where to send the advance. The numbers and bank details are kept in the
+  // Sheet and fetched here; if that fails, the customer is told we will call.
+  async function showPaymentDetails(method: string, pay: Payment) {
+    const fallback = `আপনি ${pay.labelBn} বেছে নিয়েছেন। পেমেন্টের নম্বর আমরা ফোন করে জানিয়ে দেব।`;
+    const amount = advance ? `${formatTk(advance)} ` : '';
+    set('#pay-how', 'পেমেন্টের তথ্য আনা হচ্ছে…');
+    let info: PaymentInfo | null = null;
+    try {
+      const res = await fetch('/api/payment-info', { headers: { accept: 'application/json' } });
+      const data = await res.json();
+      if (data.ok) info = data.payments;
+    } catch {
+      // network problem: fall back below
+    }
+
+    if (method === 'bank') {
+      const b = info?.bank;
+      if (!b?.bankName || !(b.accountNumber || b.cardNumber)) return set('#pay-how', fallback);
+      set('#pay-how', `নিচের ব্যাংক অ্যাকাউন্টে ${amount}পাঠান:`);
+      const dl = document.querySelector<HTMLElement>('#bank-details')!;
+      const rows: [string, string | null][] = [
+        ['ব্যাংক', b.bankName],
+        ['অ্যাকাউন্টের নাম', b.accountName],
+        ['অ্যাকাউন্ট নম্বর', b.accountNumber],
+        ['কার্ড নম্বর', b.cardNumber],
+        ['শাখা', b.branch],
+        ['রাউটিং নম্বর', b.routing],
+      ];
+      for (const [label, value] of rows) {
+        if (!value) continue;
+        const dt = document.createElement('dt');
+        const dd = document.createElement('dd');
+        dt.textContent = label;
+        dd.textContent = value;
+        dl.append(dt, dd);
+      }
+      dl.hidden = false;
+      return;
+    }
+
+    const number = info?.[method as 'bkash' | 'nagad' | 'rocket']?.number;
+    if (!number) return set('#pay-how', fallback);
+    set('#pay-how', `${pay.labelBn} নম্বর ${number}-এ ${amount}${pay.howBn ? pay.howBn + ' ' : ''}করুন।`);
+  }
+
+  // "Paid already? Enter the TrxID" box. A bank's message has no phone number
+  // in it, so bank transfers ask for the reference number and the sender's
+  // name and bank instead.
+  function setUpClaim(orderId: string, key: string, method: string) {
     const box = document.querySelector<HTMLElement>('#claim')!;
     const form = document.querySelector<HTMLFormElement>('#claim-form')!;
     const done = document.querySelector<HTMLElement>('#claim-done')!;
@@ -178,6 +222,28 @@ const pageData = JSON.stringify({
     const submit = document.querySelector<HTMLButtonElement>('#claim-submit')!;
     form.orderId.value = orderId;
     form.key.value = key;
+    (form.elements.namedItem('method') as HTMLInputElement).value = method; // form.method is the HTTP method
+    const bank = method === 'bank';
+    const submitText = bank ? 'তথ্য জমা দিন' : 'TrxID জমা দিন';
+    if (bank) {
+      set('#claim-title', 'টাকা পাঠিয়েছেন? ট্রানজেকশনের তথ্য দিন');
+      set(
+        '#claim-intro',
+        'ব্যাংক অ্যাপ বা জমার রসিদে একটি ট্রানজেকশন / রেফারেন্স নম্বর থাকে। সেটি আর যার অ্যাকাউন্ট থেকে পাঠিয়েছেন তার নাম ও ব্যাংকের নাম দিন, আমরা ব্যাংক স্টেটমেন্টে মিলিয়ে দেখে অর্ডার নিশ্চিত করব। রসিদের ছবি থাকলে WhatsApp-এ পাঠাতে পারেন।',
+      );
+      set('#trxId-label', 'ট্রানজেকশন / রেফারেন্স নম্বর');
+      set('#paidFrom-label', 'যার অ্যাকাউন্ট থেকে পাঠিয়েছেন (নাম ও ব্যাংক)');
+      set('#claim-done-title', 'ধন্যবাদ! তথ্য পেয়েছি।');
+      form.trxId.placeholder = 'রসিদ বা ব্যাংক অ্যাপে পাবেন';
+      form.paidFrom.type = 'text';
+      form.paidFrom.inputMode = 'text';
+      form.paidFrom.maxLength = 80;
+      form.paidFrom.placeholder = 'যেমন: রহিম উদ্দিন, ডাচ-বাংলা ব্যাংক';
+      submit.textContent = submitText;
+    } else if (method === 'rocket') {
+      set('#paidFrom-label', 'যে রকেট নম্বর থেকে টাকা পাঠিয়েছেন');
+      form.paidFrom.placeholder = '01XXXXXXXXXX';
+    }
     box.hidden = false;
 
     const showAlert = (msg: string | null) => {
@@ -227,7 +293,7 @@ const pageData = JSON.stringify({
         showAlert('ইন্টারনেট সংযোগে সমস্যা। সংযোগ দেখে আবার চেষ্টা করুন।');
       }
       submit.disabled = false;
-      submit.textContent = 'TrxID জমা দিন';
+      submit.textContent = submitText;
     });
 
     document.querySelector('#claim-again')!.addEventListener('click', () => {
@@ -277,6 +343,23 @@ const pageData = JSON.stringify({
   }
   #amounts {
     margin-bottom: 12px;
+  }
+  .bank {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 14px;
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    background: var(--bg-soft);
+    border-radius: 10px;
+  }
+  .bank dt {
+    color: var(--ink-soft);
+  }
+  .bank dd {
+    margin: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
   }
   .muted {
     color: var(--ink-soft);

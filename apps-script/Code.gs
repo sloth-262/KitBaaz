@@ -44,14 +44,26 @@ const COLUMNS = [
   ['whatsapp', 'Send on WhatsApp', 140],
   ['source', 'Source', 80],
   // Filled in by the customer on the thank-you page. Shakil checks them in the
-  // bKash / Nagad app before setting Status to "Advance received".
+  // bKash / Nagad / Rocket app or bank statement before setting Status to
+  // "Advance received". For bank transfers, TrxID holds the bank reference
+  // number and Paid from holds the sender's name and bank.
   ['trxId', 'TrxID', 120],
   ['paidFrom', 'Paid from', 115],
   ['claimedAt', 'Payment claimed at', 140],
 ];
 
-const PAYMENT_LABELS = { bkash: 'বিকাশ', nagad: 'নগদ', bank: 'ব্যাংক ট্রান্সফার' };
-const PAYMENT_SETTING = { 'বিকাশ': 'bKash number', 'নগদ': 'Nagad number', 'ব্যাংক ট্রান্সফার': 'Bank details' };
+const PAYMENT_LABELS = { bkash: 'বিকাশ', nagad: 'নগদ', rocket: 'রকেট', bank: 'ব্যাংক ট্রান্সফার' };
+const WALLET_SETTING = { bkash: 'bKash number', nagad: 'Nagad number', rocket: 'Rocket number' };
+// [key sent to the website, setting name, Bangla label in messages]
+const BANK_FIELDS = [
+  ['bankName', 'Bank name', 'ব্যাংক'],
+  ['accountName', 'Bank account name', 'অ্যাকাউন্টের নাম'],
+  ['accountNumber', 'Bank account number', 'অ্যাকাউন্ট নম্বর'],
+  ['branch', 'Bank branch', 'শাখা'],
+  ['routing', 'Bank routing number', 'রাউটিং নম্বর'],
+  ['cardNumber', 'Bank card number', 'কার্ড নম্বর'],
+];
+const BANK_LABEL = PAYMENT_LABELS.bank;
 
 const SETTINGS = [
   ['Business name', 'KitBaaz', 'Shown at the end of customer messages'],
@@ -59,9 +71,17 @@ const SETTINGS = [
   ['Advance percent', 50, 'Shown in messages. The website calculates the amount.'],
   ['Delivery days min', 10, ''],
   ['Delivery days max', 14, ''],
-  ['bKash number', '', 'For advance payment messages, e.g. 01XXXXXXXXX'],
+  // Payment details: the only place they are kept. The website's thank-you
+  // page and the customer message drafts both read them from here.
+  ['bKash number', '', 'Where customers send the advance, e.g. 01XXXXXXXXX'],
   ['Nagad number', '', ''],
-  ['Bank details', '', 'Bank, account name, account number, branch'],
+  ['Rocket number', '', 'Rocket account number (12 digits: mobile number + 1 digit)'],
+  ['Bank name', '', 'e.g. Dutch-Bangla Bank (DBBL)'],
+  ['Bank account name', '', 'Name on the account'],
+  ['Bank account number', '', ''],
+  ['Bank branch', '', ''],
+  ['Bank routing number', '', 'Needed for transfers from other banks'],
+  ['Bank card number', '', 'Optional: card number for card transfers'],
   ['Facebook page', '', 'Link used in review request messages'],
 ];
 
@@ -84,6 +104,7 @@ function doPost(e) {
   if (!secret || body.secret !== secret) return json_({ ok: false, error: 'forbidden' });
 
   if (body.action === 'payment') return handlePaymentClaim_(body.payment);
+  if (body.action === 'paymentInfo') return json_({ ok: true, payments: paymentInfo_(readSettings_()) });
 
   const problem = checkOrder_(body.order);
   if (problem) return json_({ ok: false, error: problem });
@@ -115,8 +136,11 @@ function doGet() {
 
 function handlePaymentClaim_(p) {
   if (!p || !/^KB-[A-Z0-9-]{4,20}$/.test(String(p.orderId || ''))) return json_({ ok: false, error: 'bad_order_id' });
-  if (!/^[A-Z0-9]{6,20}$/.test(String(p.trxId || ''))) return json_({ ok: false, error: 'bad_trx_id' });
-  if (!/^01[3-9]\d{8}$/.test(String(p.paidFrom || ''))) return json_({ ok: false, error: 'bad_phone' });
+  // Loose checks here; savePaymentClaim_ applies the rules for the order's payment method.
+  if (!/^[A-Z0-9][A-Z0-9/-]{3,29}$/.test(String(p.trxId || ''))) return json_({ ok: false, error: 'bad_trx_id' });
+  const from = str_(p.paidFrom);
+  if (from.length < 3 || from.length > 80 || /^[=+\-@]/.test(from)) return json_({ ok: false, error: 'bad_phone' });
+  p = { orderId: p.orderId, trxId: String(p.trxId), paidFrom: from };
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return json_({ ok: false, error: 'busy' });
@@ -147,6 +171,8 @@ function savePaymentClaim_(p) {
   const values = sheet.getRange(rowNum, 1, 1, sheet.getLastColumn()).getValues()[0];
   const get = (key) => values[cols[key] - 1];
   if (get('status') === 'Cancelled') return { error: 'cancelled' };
+  const claimProblem = checkClaimFor_(String(get('payment')), p);
+  if (claimProblem) return { error: claimProblem };
 
   const previous = String(get('trxId') || '');
   const repeat = previous === p.trxId && String(get('paidFrom')) === p.paidFrom;
@@ -177,18 +203,35 @@ function savePaymentClaim_(p) {
   };
 }
 
+// Mobile wallets: TrxID of letters and digits, paid from a mobile number
+// (Rocket account numbers are the mobile number plus one digit).
+// Bank: any reference number, paid from "name, bank".
+function checkClaimFor_(label, p) {
+  if (label === BANK_LABEL) return null;
+  if (!/^[A-Z0-9]{6,20}$/.test(p.trxId)) return 'bad_trx_id';
+  const phone = label === PAYMENT_LABELS.rocket ? /^01[3-9]\d{8,9}$/ : /^01[3-9]\d{8}$/;
+  if (!phone.test(p.paidFrom)) return 'bad_phone';
+  return null;
+}
+
 function notifyPaymentClaim_(row) {
   const url = rowUrl_(row.rowNum);
-  const otherNumber = row.paidFrom !== row.phone ? ` (অর্ডারের নম্বর ${row.phone} থেকে আলাদা)` : '';
+  const bank = row.payment === BANK_LABEL;
+  // Rocket account = mobile number + 1 digit, so compare the first 11 digits.
+  const otherNumber =
+    !bank && row.paidFrom.slice(0, 11) !== row.phone ? ` (অর্ডারের নম্বর ${row.phone} থেকে আলাদা)` : '';
+  const check = bank
+    ? 'ব্যাংক অ্যাপ বা স্টেটমেন্টে টাকার পরিমাণ, নাম আর রেফারেন্স মিলিয়ে দেখুন।'
+    : `${row.payment} অ্যাপে TrxID মিলিয়ে দেখুন।`;
   const text =
     `অর্ডার নম্বর: ${row.id}\n` +
     `নাম: ${row.customer}\n` +
     `মাধ্যম: ${row.payment}\n` +
-    `TrxID: ${row.trxId}\n` +
-    `যে নম্বর থেকে: ${row.paidFrom}${otherNumber}\n` +
+    `${bank ? 'রেফারেন্স নম্বর' : 'TrxID'}: ${row.trxId}\n` +
+    `${bank ? 'যার অ্যাকাউন্ট থেকে' : 'যে নম্বর থেকে'}: ${row.paidFrom}${otherNumber}\n` +
     `অগ্রিম হওয়ার কথা: ${tk_(row.advanceDue)}` +
     (row.previousTrxId ? `\nআগের TrxID: ${row.previousTrxId}` : '') +
-    `\n\n${row.payment} অ্যাপে TrxID মিলিয়ে দেখুন। ঠিক থাকলে Status দিন "Advance received"।`;
+    `\n\n${check} ঠিক থাকলে Status দিন "Advance received"।`;
 
   sendAlertEmail_(`পেমেন্ট দাবি ${row.id}: TrxID ${row.trxId}`, `গ্রাহক জানিয়েছেন তিনি অগ্রিম পাঠিয়েছেন।\n\n${text}\n\nশিটে দেখুন: ${url}`);
   sendTelegram_(`💰 পেমেন্ট দাবি (যাচাই করুন)\n\n${text}\n\nশিট: ${url}`);
@@ -412,14 +455,28 @@ function buildMessage_(o, s) {
   }
 }
 
+// Payment details for the website's thank-you page. Empty settings are null,
+// and the page then says "we will call you with the number".
+function paymentInfo_(s) {
+  const val = (name) => (s[name] === '' || s[name] == null ? null : String(s[name]));
+  const out = {};
+  Object.keys(WALLET_SETTING).forEach((key) => (out[key] = { number: val(WALLET_SETTING[key]) }));
+  out.bank = {};
+  BANK_FIELDS.forEach(([key, name]) => (out.bank[key] = val(name)));
+  return out;
+}
+
 function paymentLine_(o, s) {
   const label = o.payment;
-  const details = s[PAYMENT_SETTING[label]] || (label === 'ব্যাংক ট্রান্সফার' ? '[ব্যাংকের তথ্য লিখুন]' : '[নম্বর লিখুন]');
   const amount = tk_(o.advanceDue);
-  if (label === 'ব্যাংক ট্রান্সফার') {
+  if (label === BANK_LABEL) {
+    const lines = BANK_FIELDS.filter(([, name]) => s[name]).map(([, name, bn]) => `${bn}: ${s[name]}`);
+    const details = lines.length ? lines.join('\n') : '[ব্যাংকের তথ্য লিখুন]';
     return `এই ব্যাংক অ্যাকাউন্টে ${amount} পাঠান:\n${details}\nরেফারেন্সে অর্ডার নম্বর ${o.id} লিখুন।\n`;
   }
-  return `${label} নম্বর ${details}-এ ${amount} Send Money করুন এবং রেফারেন্সে অর্ডার নম্বর ${o.id} লিখুন।\n`;
+  const method = Object.keys(PAYMENT_LABELS).find((k) => PAYMENT_LABELS[k] === label);
+  const number = s[WALLET_SETTING[method]] || '[নম্বর লিখুন]';
+  return `${label} নম্বর ${number}-এ ${amount} Send Money করুন এবং রেফারেন্সে অর্ডার নম্বর ${o.id} লিখুন।\n`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -612,6 +669,14 @@ function setupSheet() {
     settings.getRange(2, 2, SETTINGS.length, 1).setNumberFormat('@');
     settings.setColumnWidth(1, 170).setColumnWidth(2, 260).setColumnWidth(3, 360);
     settings.setFrozenRows(1);
+  } else {
+    // Settings made by an older version of this script: add any new settings at the end.
+    const keys = settings.getRange(1, 1, settings.getLastRow(), 1).getValues().map(([k]) => k);
+    SETTINGS.filter(([k]) => keys.indexOf(k) < 0).forEach((s) => {
+      const r = settings.getLastRow() + 1;
+      settings.getRange(r, 2).setNumberFormat('@');
+      settings.getRange(r, 1, 1, 3).setValues([s]);
+    });
   }
 
   // Summary

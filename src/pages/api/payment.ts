@@ -1,6 +1,7 @@
 // Customer says "I paid the advance" from the thank-you page: records the TrxID
-// and the number they paid from on their order row. Never changes the status;
-// Shakil checks the TrxID in the bKash / Nagad app and confirms it himself.
+// and the number they paid from (for a bank transfer: the bank reference and
+// the sender's name and bank) on their order row. Never changes the status;
+// Shakil checks it in the bKash / Nagad / Rocket app or bank statement himself.
 
 import type { APIRoute } from 'astro';
 import { validatePaymentClaim, ORDER_ID_PATTERN, type ClaimErrors } from '../../lib/order';
@@ -9,18 +10,26 @@ import { postToSheet, sheetConfigured, linkSecret, NotConfiguredError } from '..
 
 export const prerender = false;
 
-type ErrorCode = 'bad_request' | 'invalid' | 'bad_link' | 'not_found' | 'cancelled' | 'server';
+type ErrorCode = 'bad_request' | 'invalid' | 'bad_link' | 'mismatch' | 'not_found' | 'cancelled' | 'server';
 
 const MESSAGES: Record<ErrorCode, string> = {
   bad_request: 'তথ্যটি পড়া যায়নি। আবার চেষ্টা করুন।',
   invalid: 'কিছু তথ্য ঠিক নেই। লাল চিহ্নিত ঘরগুলো দেখুন।',
   bad_link: 'এই লিংক থেকে পেমেন্টের তথ্য দেওয়া যাচ্ছে না। TrxID আমাদের WhatsApp বা ফোনে জানান।',
+  mismatch: 'তথ্যটি আপনার বেছে নেওয়া পেমেন্ট মাধ্যমের সাথে মিলছে না। TrxID আমাদের WhatsApp বা ফোনে জানান।',
   not_found: 'অর্ডারটি খুঁজে পাওয়া যায়নি। TrxID আমাদের WhatsApp বা ফোনে জানান।',
   cancelled: 'এই অর্ডারটি বাতিল করা হয়েছে। প্রশ্ন থাকলে আমাদের জানান।',
   server: 'তথ্যটি জমা দেওয়া যায়নি। একটু পরে আবার চেষ্টা করুন, অথবা TrxID আমাদের WhatsApp বা ফোনে জানান।',
 };
 
-const SHEET_ERRORS: Record<string, ErrorCode> = { not_found: 'not_found', cancelled: 'cancelled' };
+// bad_trx_id / bad_phone here mean the claim passed the site's checks for one
+// method but the order was placed with another (e.g. a phone number on a bank order).
+const SHEET_ERRORS: Record<string, ErrorCode> = {
+  not_found: 'not_found',
+  cancelled: 'cancelled',
+  bad_trx_id: 'mismatch',
+  bad_phone: 'mismatch',
+};
 
 export const POST: APIRoute = async ({ request }) => {
   const fail = (status: number, code: ErrorCode, fieldErrors?: ClaimErrors) =>
@@ -55,7 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
     if (!data.ok) {
       const code = SHEET_ERRORS[String(data.error)];
-      if (code) return fail(code === 'not_found' ? 404 : 409, code);
+      if (code) return fail(code === 'not_found' ? 404 : code === 'mismatch' ? 422 : 409, code);
       throw new Error(`Sheet webhook rejected the payment claim: ${data.error}`);
     }
     return Response.json({ ok: true });

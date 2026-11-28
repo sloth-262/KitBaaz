@@ -43,10 +43,21 @@ In the **Settings** tab, fill in the **Value** column:
 | Alert email | already set to the KitBaaz email; add more with commas |
 | bKash number | `01XXXXXXXXX` |
 | Nagad number | `01XXXXXXXXX` |
-| Bank details | Bank, account name, account number, branch |
+| Rocket number | `01XXXXXXXXXX` (12 digits: the mobile number plus one digit) |
+| Bank name | `Dutch-Bangla Bank (DBBL)` |
+| Bank account name | name on the account |
+| Bank account number | |
+| Bank branch | |
+| Bank routing number | needed for transfers from other banks |
+| Bank card number | optional |
 | Facebook page | `https://facebook.com/...` |
 
 Until a payment number is filled in, message drafts show `[নম্বর লিখুন]` ("write the number") so it is obvious.
+
+This is the only place payment details are kept. The message drafts use them, and the website's
+thank-you page reads them from here (it keeps a copy for up to 5 minutes, so a change shows on
+the site within 5 minutes). An empty setting makes the page say "we will call you with the number".
+A bank is shown on the site once **Bank name** and an account or card number are filled in.
 
 ## 4. Try it inside the sheet
 
@@ -93,13 +104,16 @@ npx wrangler secret put ORDER_WEBHOOK_SECRET
 
 ## Confirming advance payments
 
-The website never confirms a payment by itself. You do, in the bKash / Nagad app.
+The website never confirms a payment by itself. You do, in the bKash / Nagad / Rocket app or
+your bank statement.
 
 1. After paying, the customer can enter their **TrxID** and the number they paid from on the
-   thank-you page. It lands in the **TrxID**, **Paid from** and **Payment claimed at** columns,
+   thank-you page. For a **bank transfer** a bank's message has no phone number, so the page asks
+   instead for the bank's **reference number** (saved in the TrxID column) and **the sender's
+   name and bank** (saved in Paid from). Match those and the amount in your bank app or statement. It lands in the **TrxID**, **Paid from** and **Payment claimed at** columns,
    which turn **bright yellow** while the status is still `Pre-order`, and you get a
    "পেমেন্ট দাবি" email. The Summary tab counts these under "Payments to check".
-2. Open the bKash / Nagad app and find that TrxID. Check the **amount** matches **Advance due**.
+2. Open the bKash / Nagad / Rocket app (or bank statement) and find that TrxID. Check the **amount** matches **Advance due**.
 3. If it matches: set **Status** to `Advance received` (fix **Advance paid** if the amount differs),
    then send the updated draft with **WhatsApp-এ পাঠান**. The yellow goes away.
 4. If it does not match, or there is no such TrxID: leave the status, and call the customer.

@@ -138,6 +138,34 @@ test('uses Settings for payment numbers', () => {
   assert.match(env.cell(2, 'message'), /বিকাশ নম্বর 01811111111-এ ৳ ৪,৫০০ Send Money করুন/);
 });
 
+const setSetting = (env, name, value) => {
+  const settings = env.ss.getSheetByName('Settings');
+  settings.set(settings.data.findIndex((r) => r[0] === name) + 1, 2, value);
+};
+
+test('bank orders list the bank settings in the message draft', () => {
+  const env = setUp();
+  setSetting(env, 'Bank name', 'Dutch-Bangla Bank (DBBL)');
+  setSetting(env, 'Bank account number', '178105005792');
+  post(env, { secret: env.secret, order: order({ payment: 'bank' }) });
+  const msg = env.cell(2, 'message');
+  assert.match(msg, /ব্যাংক: Dutch-Bangla Bank \(DBBL\)\nঅ্যাকাউন্ট নম্বর: 178105005792\n/);
+  assert.doesNotMatch(msg, /শাখা|লিখুন\]/); // empty settings are left out
+});
+
+test('the website can read the payment details from Settings', () => {
+  const env = setUp();
+  setSetting(env, 'Rocket number', '014023292511');
+  setSetting(env, 'Bank card number', '012102550204');
+  const res = post(env, { secret: env.secret, action: 'paymentInfo' });
+  assert.equal(res.ok, true);
+  assert.deepEqual({ ...res.payments.rocket }, { number: '014023292511' });
+  assert.equal(res.payments.bkash.number, null);
+  assert.equal(res.payments.bank.cardNumber, '012102550204');
+  assert.equal(res.payments.bank.bankName, null);
+  assert.equal(post(env, { secret: 'wrong', action: 'paymentInfo' }).error, 'forbidden');
+});
+
 test('a double submit returns the same order ID and adds nothing', () => {
   const env = setUp();
   const a = post(env, { secret: env.secret, order: order() });
@@ -312,6 +340,39 @@ test('payment claims are checked', () => {
   assert.equal(post(env, { secret: 'wrong', action: 'payment', payment: { orderId } }).error, 'forbidden');
   env.orders.set(2, env.cols.status, 'Cancelled');
   assert.equal(claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: '01712345678' }).error, 'cancelled');
+});
+
+test('Rocket orders accept a 12-digit Rocket account number', () => {
+  const env = setUp();
+  const { orderId } = post(env, { secret: env.secret, order: order({ payment: 'rocket' }) });
+  assert.equal(env.cell(2, 'payment'), 'রকেট');
+  env.mails.length = 0;
+  assert.equal(claim(env, { orderId, trxId: '1234567890', paidFrom: '017123456781' }).ok, true);
+  assert.equal(env.cell(2, 'paidFrom'), '017123456781');
+  assert.doesNotMatch(env.mails[0].body, /আলাদা/); // same mobile number as the order
+});
+
+test('bank orders take a reference number and the sender name and bank', () => {
+  const env = setUp();
+  const { orderId } = post(env, { secret: env.secret, order: order({ payment: 'bank' }) });
+  env.mails.length = 0;
+  const res = claim(env, { orderId, trxId: 'FT2611/0042-A', paidFrom: '  রহিম উদ্দিন, ডাচ-বাংলা ব্যাংক ' });
+  assert.equal(res.ok, true);
+  assert.equal(env.cell(2, 'trxId'), 'FT2611/0042-A');
+  assert.equal(env.cell(2, 'paidFrom'), 'রহিম উদ্দিন, ডাচ-বাংলা ব্যাংক');
+  assert.match(env.mails[0].body, /রেফারেন্স নম্বর: FT2611\/0042-A/);
+  assert.match(env.mails[0].body, /যার অ্যাকাউন্ট থেকে: রহিম উদ্দিন/);
+  assert.doesNotMatch(env.mails[0].body, /আলাদা/);
+  assert.equal(claim(env, { orderId, trxId: 'FT1', paidFrom: '=HYPERLINK("x")' }).error, 'bad_trx_id');
+  assert.equal(claim(env, { orderId, trxId: 'FT2611', paidFrom: '=HYPERLINK("x")' }).error, 'bad_phone');
+});
+
+test('wallet orders still need a TrxID and a mobile number', () => {
+  const env = setUp();
+  const { orderId } = post(env, { secret: env.secret, order: order() }); // bKash
+  assert.equal(claim(env, { orderId, trxId: 'FT2611/0042', paidFrom: '01712345678' }).error, 'bad_trx_id');
+  assert.equal(claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: 'রহিম, ডাচ-বাংলা' }).error, 'bad_phone');
+  assert.equal(claim(env, { orderId, trxId: 'AAA111BBB2', paidFrom: '017123456781' }).error, 'bad_phone'); // 12 digits only for Rocket
 });
 
 test('the agent gets a payment.claimed event marked as not verified', () => {
